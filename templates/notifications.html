@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Notifications · IMS{% endblock %}
+{% block content %}
+<div class="grid md:grid-cols-3 gap-6">
+    <div class="bg-white rounded-lg shadow">
+        <div class="p-3 border-b font-semibold">Overdue Reports</div>
+        <ul class="divide-y text-sm">
+            {% for x in overdue_reports %}
+            <li class="p-3"><a class="underline" href="{{ url_for('inspection_detail', inspection_id=x.id) }}">#{{ x.id
+                    }}</a> — {{ x.client.name if x.client else '—' }}<div class="text-slate-500">{{
+                    x.date.strftime('%Y-%m-%d') }}</div>
+            </li>
+            {% else %}<li class="p-3 text-slate-500">Clear.</li>{% endfor %}
+        </ul>
+    </div>
+    <div class="bg-white rounded-lg shadow">
+        <div class="p-3 border-b font-semibold">Missing Invoices</div>
+        <ul class="divide-y text-sm">
+            {% for x in missing_invoice %}
+            <li class="p-3"><a class="underline" href="{{ url_for('inspection_detail', inspection_id=x.id) }}">#{{ x.id
+                    }}</a> — {{ x.client.name if x.client else '—' }}</li>
+            {% else %}<li class="p-3 text-slate-500">None.</li>{% endfor %}
+        </ul>
+    </div>
+    <div class="bg-white rounded-lg shadow">
+        <div class="p-3 border-b font-semibold">Commission Due</div>
+        <ul class="divide-y text-sm">
+            {% for c in commission_due %}
+            <li class="p-3">Inspection <a class="underline"
+                    href="{{ url_for('inspection_detail', inspection_id=c.inspection_id) }}">#{{ c.inspection_id }}</a>
+                — ₹{{ '%.2f'|format(c.amount or 0) }}</li>
+            {% else %}<li class="p-3 text-slate-500">None.</li>{% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

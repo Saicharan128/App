@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Inspection #{{ i.id }} · IMS{% endblock %}
+{% block content %}
+<div class="grid lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <div class="bg-white rounded-lg shadow p-5">
+            <div class="flex items-center justify-between">
+                <h1 class="text-lg font-semibold">Inspection #{{ i.id }}</h1>
+                <span class="text-xs px-2 py-1 rounded bg-slate-100 border">{{ i.status }}</span>
+            </div>
+            <div class="mt-4 grid md:grid-cols-2 gap-3 text-sm">
+                <div>
+                    <div class="text-slate-500">Date</div>
+                    <div>{{ i.date.strftime('%Y-%m-%d %H:%M') }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">Client</div>
+                    <div>{{ i.client.name if i.client else '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">Location</div>
+                    <div>{{ i.location or '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">Asset</div>
+                    <div>{{ i.asset or '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">Engineer</div>
+                    <div>{{ i.engineer.name if i.engineer else '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">CHA</div>
+                    <div>{{ i.cha.name if i.cha else '—' }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="bg-white rounded-lg shadow p-5">
+                <h2 class="font-semibold mb-3">Report</h2>
+                {% if rep %}
+                <div class="text-sm mb-3">Status: <span class="px-2 py-1 rounded bg-slate-100 border">{{ rep.status
+                        }}</span></div>
+                <div class="flex gap-2">
+                    <a class="rounded px-3 py-1.5 bg-slate-900 text-white"
+                        href="{{ url_for('report_edit', inspection_id=i.id) }}">Edit</a>
+                    <a class="rounded px-3 py-1.5 border"
+                        href="{{ url_for('report_view', inspection_id=i.id) }}">View</a>
+                </div>
+                {% else %}
+                <a class="rounded px-3 py-1.5 bg-slate-900 text-white"
+                    href="{{ url_for('report_edit', inspection_id=i.id) }}">Create</a>
+                {% endif %}
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-5">
+                <h2 class="font-semibold mb-3">Invoice</h2>
+                {% if inv %}
+                <div class="text-sm mb-3">Status: <span class="px-2 py-1 rounded bg-slate-100 border">{{ inv.status
+                        }}</span> · Total: ₹{{ '%.2f'|format(inv.total) }}</div>
+                {% if session.get('role') in [Role.ADMIN, Role.ACCOUNTANT] %}
+                <a class="rounded px-3 py-1.5 bg-slate-900 text-white"
+                    href="{{ url_for('invoice_edit', inspection_id=i.id) }}">Edit</a>
+                {% endif %}
+                {% else %}
+                {% if session.get('role') in [Role.ADMIN, Role.ACCOUNTANT] %}
+                <a class="rounded px-3 py-1.5 bg-slate-900 text-white"
+                    href="{{ url_for('invoice_edit', inspection_id=i.id) }}">Create</a>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        {% if session.get('role') in [Role.ADMIN, Role.ENGINEER] %}
+        <div class="bg-white rounded-lg shadow p-5">
+            <h2 class="font-semibold mb-3">Update Status</h2>
+            <form method="post" action="{{ url_for('inspection_status', inspection_id=i.id) }}" class="flex gap-2">
+                <select name="status" class="border rounded px-2 py-1.5">
+                    {% for s in InspectionStatus.ALL %}<option value="{{ s }}" {% if i.status==s %}selected{% endif %}>
+                        {{ s }}</option>{% endfor %}
+                </select>
+                <button class="bg-slate-900 text-white rounded px-3">Update</button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if session.get('role') == Role.ADMIN %}
+        <div class="bg-white rounded-lg shadow p-5">
+            <h2 class="font-semibold mb-3">Assign Engineer</h2>
+            <form method="post" action="{{ url_for('assign_engineer', inspection_id=i.id) }}" class="flex gap-2">
+                <select name="engineer_id" class="border rounded px-2 py-1.5">
+                    <option value="">—</option>
+                    {% for e in User.query.filter(User.role==Role.ENGINEER).all() %}
+                    <option value="{{ e.id }}" {% if i.engineer_id==e.id %}selected{% endif %}>{{ e.name }}</option>
+                    {% endfor %}
+                </select>
+                <button class="bg-slate-900 text-white rounded px-3">Assign</button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if session.get('role') in [Role.ADMIN, Role.ACCOUNTANT] %}
+        <div class="bg-white rounded-lg shadow p-5">
+            <h2 class="font-semibold mb-3">Commission</h2>
+            {% if i.cha %}
+            <form method="post" action="{{ url_for('commission_generate', inspection_id=i.id) }}">
+                <button class="bg-slate-900 text-white rounded px-3 py-1.5">Generate/Update</button>
+            </form>
+            {% if i.commission %}
+            <div class="mt-2 text-sm">Amount: ₹{{ '%.2f'|format(i.commission.amount) }} · Status: {{ i.commission.status
+                }}</div>
+            {% endif %}
+            {% else %}
+            <div class="text-sm text-slate-500">No CHA linked.</div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

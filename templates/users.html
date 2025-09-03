@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Users · IMS{% endblock %}
+{% block content %}
+<h1 class="text-lg font-semibold mb-4">Users</h1>
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-100">
+            <tr>
+                <th class="p-3 text-left">ID</th>
+                <th class="p-3 text-left">Name</th>
+                <th class="p-3">Email</th>
+                <th class="p-3">Role</th>
+                <th class="p-3"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr class="border-t">
+                <td class="p-3">{{ u.id }}</td>
+                <td class="p-3">{{ u.name }}</td>
+                <td class="p-3">{{ u.email }}</td>
+                <td class="p-3">
+                    <form method="post" class="flex items-center gap-2">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <select name="role" class="border rounded px-2 py-1">
+                            {% for r in Role.ALL %}<option value="{{ r }}" {% if u.role==r %}selected{% endif %}>{{ r }}
+                            </option>{% endfor %}
+                        </select>
+                        <button class="px-3 py-1 rounded bg-slate-900 text-white">Save</button>
+                    </form>
+                </td>
+                <td class="p-3"></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

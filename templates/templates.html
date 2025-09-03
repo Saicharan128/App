@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Templates · IMS{% endblock %}
+{% block content %}
+<div class="grid md:grid-cols-2 gap-6">
+    <div class="bg-white rounded-lg shadow p-5">
+        <h2 class="font-semibold mb-3">Create Template</h2>
+        <form method="post" class="space-y-3">
+            <input type="hidden" name="create" value="1">
+            <div><label class="text-xs">Name</label><input name="name" required class="w-full border rounded px-3 py-2">
+            </div>
+            <div class="flex items-center gap-2">
+                <input id="active" type="checkbox" name="active" class="border rounded">
+                <label for="active" class="text-sm">Active</label>
+            </div>
+            <div><label class="text-xs">AI Prompt (optional)</label><textarea name="ai_prompt" rows="3"
+                    class="w-full border rounded px-3 py-2"></textarea></div>
+            <div><label class="text-xs">HTML Snippet</label><textarea name="html_snippet" rows="6"
+                    class="w-full border rounded px-3 py-2"
+                    placeholder="Use {{'{{client}}'}}, {{'{{location}}'}}, {{'{{asset}}'}}, {{'{{engineer}}'}}, {{'{{findings}}'}}"></textarea>
+            </div>
+            <button class="bg-slate-900 text-white rounded px-4 py-2">Create</button>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-100">
+                <tr>
+                    <th class="p-3 text-left">Name</th>
+                    <th class="p-3">Active</th>
+                    <th class="p-3">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in templates %}
+                <tr class="border-t">
+                    <td class="p-3">{{ t.name }}</td>
+                    <td class="p-3">{{ 'Yes' if t.active else 'No' }}</td>
+                    <td class="p-3">
+                        <form method="post" class="inline">
+                            <input type="hidden" name="template_id" value="{{ t.id }}">
+                            <button name="toggle" value="1" class="underline">Toggle Active</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td class="p-3 text-slate-500" colspan="3">No templates.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

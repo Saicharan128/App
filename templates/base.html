@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}IMS{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-50 text-slate-900">
+    <!-- Top Nav -->
+    <nav class="bg-white border-b border-slate-200">
+        <div class="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
+            <a href="{{ url_for('dashboard') }}" class="font-semibold">Inspection Manager</a>
+            <div class="flex items-center gap-3">
+                {% if session.get('user_id') %}
+                <form action="{{ url_for('global_search') }}" method="get" class="hidden md:flex">
+                    <input name="q" value="{{ request.args.get('q','') }}" placeholder="Search…"
+                        class="rounded-l-md border border-slate-300 px-3 py-1.5 focus:outline-none focus:ring w-64">
+                    <button class="rounded-r-md bg-slate-900 text-white px-3">Go</button>
+                </form>
+                <span class="text-sm text-slate-500">Hi, {{ session.get('user_name') }}</span>
+                <a class="text-sm underline" href="{{ url_for('logout') }}">Logout</a>
+                {% else %}
+                <a class="text-sm underline" href="{{ url_for('login') }}">Login</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- Secondary Nav -->
+    {% if session.get('user_id') %}
+    <div class="bg-slate-100 border-b border-slate-200">
+        <div class="mx-auto max-w-7xl px-4 py-2 flex flex-wrap gap-3 text-sm">
+            <a class="hover:underline" href="{{ url_for('dashboard') }}">Dashboard</a>
+            {% if session.get('role') == Role.ADMIN %}
+            <a class="hover:underline" href="{{ url_for('users_admin') }}">Users</a>
+            <a class="hover:underline" href="{{ url_for('clients_list') }}">Clients</a>
+            <a class="hover:underline" href="{{ url_for('chas_list') }}">CHAs</a>
+            <a class="hover:underline" href="{{ url_for('templates_mgmt') }}">Templates</a>
+            {% endif %}
+            {% if session.get('role') in [Role.ADMIN, Role.ACCOUNTANT] %}
+            <a class="hover:underline" href="{{ url_for('cha_tracker') }}">CHA Tracker</a>
+            {% endif %}
+            <a class="hover:underline" href="{{ url_for('notifications') }}">Notifications</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Flash messages -->
+    <div class="mx-auto max-w-7xl px-4 py-4 space-y-2">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        {% set color = {'success':'green','info':'sky','warning':'amber','danger':'rose'}.get(category,'slate') %}
+        <div class="rounded-md border px-4 py-3 text-sm bg-{{color}}-50 border-{{color}}-200 text-{{color}}-800">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    <main class="mx-auto max-w-7xl px-4 py-6">{% block content %}{% endblock %}</main>
+    <footer class="mx-auto max-w-7xl px-4 py-8 text-xs text-slate-500">
+        &copy; {{ now().year }} IMS
+    </footer>
+</body>
+
+</html>

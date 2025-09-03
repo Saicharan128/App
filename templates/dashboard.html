@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · IMS{% endblock %}
+{% block content %}
+<div class="bg-white rounded-lg shadow p-5 mb-6">
+    <form method="get" class="grid md:grid-cols-6 gap-3 items-end">
+        <div><label class="text-xs">From</label><input type="date" name="from" value="{{ request.args.get('from','') }}"
+                class="w-full border rounded px-2 py-1.5"></div>
+        <div><label class="text-xs">To</label><input type="date" name="to" value="{{ request.args.get('to','') }}"
+                class="w-full border rounded px-2 py-1.5"></div>
+        <div>
+            <label class="text-xs">Status</label>
+            <select name="status" class="w-full border rounded px-2 py-1.5">
+                <option value="">Any</option>
+                {% for s in InspectionStatus.ALL %}<option value="{{ s }}" {% if request.args.get('status')==s
+                    %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="text-xs">CHA</label>
+            <select name="cha_id" class="w-full border rounded px-2 py-1.5">
+                <option value="">Any</option>
+                {% for c in chas %}<option value="{{ c.id }}" {% if request.args.get('cha_id', type=int)==c.id
+                    %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="text-xs">Engineer</label>
+            <select name="engineer_id" class="w-full border rounded px-2 py-1.5">
+                <option value="">Any</option>
+                {% for e in engineers %}<option value="{{ e.id }}" {% if request.args.get('engineer_id', type=int)==e.id
+                    %}selected{% endif %}>{{ e.name }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="md:col-span-6 flex gap-2">
+            <input name="q" placeholder="Client / Location / Asset" value="{{ request.args.get('q','') }}"
+                class="flex-1 border rounded px-3 py-1.5">
+            <button class="bg-slate-900 text-white rounded px-4">Filter</button>
+            <a href="{{ url_for('dashboard') }}" class="rounded border px-3 py-1.5">Reset</a>
+        </div>
+    </form>
+</div>
+
+{% if session.get('role') == Role.ADMIN %}
+<div class="bg-white rounded-lg shadow p-5 mb-8">
+    <h2 class="font-semibold mb-3">Create Inspection</h2>
+    <form method="post" action="{{ url_for('inspection_create') }}" class="grid md:grid-cols-6 gap-3">
+        <div class="md:col-span-2"><label class="text-xs">Date</label><input required type="datetime-local" name="date"
+                class="w-full border rounded px-2 py-1.5"></div>
+        <div class="md:col-span-2">
+            <label class="text-xs">Client</label>
+            <select name="client_id" required class="w-full border rounded px-2 py-1.5">
+                {% for c in clients %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="md:col-span-2"><label class="text-xs">Location</label><input name="location"
+                class="w-full border rounded px-2 py-1.5"></div>
+        <div class="md:col-span-2"><label class="text-xs">Asset</label><input name="asset"
+                class="w-full border rounded px-2 py-1.5"></div>
+        <div><label class="text-xs">Status</label>
+            <select name="status" class="w-full border rounded px-2 py-1.5">{% for s in InspectionStatus.ALL %}<option
+                    value="{{ s }}">{{ s }}</option>{% endfor %}</select>
+        </div>
+        <div>
+            <label class="text-xs">Engineer</label>
+            <select name="engineer_id" class="w-full border rounded px-2 py-1.5">
+                <option value="">—</option>{% for e in engineers %}<option value="{{ e.id }}">{{ e.name }}</option>{%
+                endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="text-xs">CHA</label>
+            <select name="cha_id" class="w-full border rounded px-2 py-1.5">
+                <option value="">—</option>{% for c in chas %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor
+                %}
+            </select>
+        </div>
+        <div class="md:col-span-6"><button class="bg-slate-900 text-white rounded px-4 py-2">Create</button></div>
+    </form>
+</div>
+{% endif %}
+
+<div class="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
+    {% for status, items in groups.items() %}
+    <div class="bg-white rounded-lg shadow">
+        <div class="border-b p-3 font-semibold">{{ status }} <span class="text-xs text-slate-500">({{ items|length
+                }})</span></div>
+        <ul class="divide-y">
+            {% for i in items %}
+            <li class="p-3 text-sm">
+                <a class="font-medium underline" href="{{ url_for('inspection_detail', inspection_id=i.id) }}">#{{ i.id
+                    }} — {{ i.client.name if i.client else '—' }}</a>
+                <div class="text-slate-500">{{ i.date.strftime('%Y-%m-%d %H:%M') }} · {{ i.location or '—' }} · {{
+                    i.asset or '—' }}</div>
+                {% if i.engineer %}<div class="text-xs">Eng: {{ i.engineer.name }}</div>{% endif %}
+            </li>
+            {% else %}
+            <li class="p-3 text-sm text-slate-500">No records.</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

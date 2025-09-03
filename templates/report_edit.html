@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Edit Report · #{{ i.id }}{% endblock %}
+{% block content %}
+<div class="bg-white rounded-lg shadow p-5">
+    <div class="mb-3 text-sm text-slate-500">Client: {{ i.client.name if i.client else '—' }} · Location: {{ i.location
+        or '—' }} · Asset: {{ i.asset or '—' }}</div>
+
+    <!-- AI insert -->
+    <form method="post" class="mb-3">
+        <input type="hidden" name="body" value="{{ rep.body }}">
+        <button name="action" value="ai" class="rounded border px-3 py-1.5">Insert from Active Template</button>
+    </form>
+
+    <!-- Editor -->
+    <form method="post" class="space-y-3">
+        <textarea name="body" rows="16" class="w-full border rounded px-3 py-2 font-mono text-sm"
+            placeholder="Write HTML or text…">{{ rep.body or '' }}</textarea>
+        <div class="flex gap-2">
+            <button class="bg-slate-900 text-white rounded px-4 py-2">Save Draft</button>
+            <button name="save_as" value="final" class="rounded border px-4 py-2">Save as Final</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

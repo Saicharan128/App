@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Register · IMS{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-md bg-white shadow rounded-lg p-6">
+    <h1 class="text-lg font-semibold mb-4">Register</h1>
+    <form method="post" class="space-y-4">
+        <div>
+            <label class="block text-sm mb-1">Name</label>
+            <input name="name" required class="w-full border rounded-md px-3 py-2">
+        </div>
+        <div>
+            <label class="block text-sm mb-1">Email</label>
+            <input name="email" type="email" required class="w-full border rounded-md px-3 py-2">
+        </div>
+        <div>
+            <label class="block text-sm mb-1">Password</label>
+            <input name="password" type="password" required class="w-full border rounded-md px-3 py-2">
+        </div>
+        {% if can_choose_role %}
+        <div>
+            <label class="block text-sm mb-1">Role</label>
+            <select name="role" class="w-full border rounded-md px-3 py-2">
+                {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+            </select>
+        </div>
+        {% endif %}
+        <button class="w-full bg-slate-900 text-white rounded-md py-2">Create account</button>
+    </form>
+</div>
+{% endblock %}

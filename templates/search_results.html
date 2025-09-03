@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Search · IMS{% endblock %}
+{% block content %}
+<h1 class="text-lg font-semibold mb-4">Search: “{{ q }}”</h1>
+<div class="grid md:grid-cols-3 gap-6">
+    <div class="bg-white rounded-lg shadow">
+        <div class="p-3 border-b font-semibold">Inspections</div>
+        <ul class="divide-y text-sm">
+            {% for i in inspections %}
+            <li class="p-3"><a class="underline" href="{{ url_for('inspection_detail', inspection_id=i.id) }}">#{{ i.id
+                    }} — {{ i.client.name if i.client else '—' }}</a>
+                <div class="text-slate-500">{{ i.location }} · {{ i.asset }}</div>
+            </li>
+            {% else %}<li class="p-3 text-slate-500">No matches.</li>{% endfor %}
+        </ul>
+    </div>
+    <div class="bg-white rounded-lg shadow">
+        <div class="p-3 border-b font-semibold">Clients</div>
+        <ul class="divide-y text-sm">
+            {% for c in clients %}
+            <li class="p-3">{{ c.name }}<div class="text-slate-500 text-xs">{{ c.gst_number }}</div>
+            </li>
+            {% else %}<li class="p-3 text-slate-500">No matches.</li>{% endfor %}
+        </ul>
+    </div>
+    <div class="bg-white rounded-lg shadow">
+        <div class="p-3 border-b font-semibold">Invoices</div>
+        <ul class="divide-y text-sm">
+            {% for inv in invoices %}
+            <li class="p-3">#{{ inv.id }} — {{ inv.status }}<div class="text-slate-500">Inspection #{{ inv.inspection_id
+                    }} ({{ inv.inspection.client.name if inv.inspection.client else '—' }})</div>
+            </li>
+            {% else %}<li class="p-3 text-slate-500">No matches.</li>{% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

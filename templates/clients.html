@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Clients · IMS{% endblock %}
+{% block content %}
+<div class="grid md:grid-cols-2 gap-6">
+    <div class="bg-white rounded-lg shadow p-5">
+        <h2 class="font-semibold mb-3">Add Client</h2>
+        <form method="post" class="space-y-3">
+            <div><label class="text-sm">Name</label><input name="name" required class="w-full border rounded px-3 py-2">
+            </div>
+            <div><label class="text-sm">GST Number</label><input name="gst_number"
+                    class="w-full border rounded px-3 py-2"></div>
+            <div><label class="text-sm">Billing Address</label><textarea name="billing_address"
+                    class="w-full border rounded px-3 py-2"></textarea></div>
+            <button class="bg-slate-900 text-white rounded px-4 py-2">Add</button>
+        </form>
+    </div>
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-100">
+                <tr>
+                    <th class="p-3 text-left">Name</th>
+                    <th class="p-3">GST</th>
+                    <th class="p-3">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in data %}
+                <tr class="border-t">
+                    <td class="p-3">{{ c.name }}</td>
+                    <td class="p-3">{{ c.gst_number }}</td>
+                    <td class="p-3">
+                        <form method="post" action="{{ url_for('clients_delete', cid=c.id) }}"
+                            onsubmit="return confirm('Delete client?')">
+                            <button class="text-rose-700 underline">Delete</button>
+                        </form>
+                    </td>
+                </tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

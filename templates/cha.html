@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}CHA Tracker · IMS{% endblock %}
+{% block content %}
+<div class="grid md:grid-cols-2 gap-6">
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="p-3 border-b font-semibold">Commissions</div>
+        <table class="w-full text-sm">
+            <thead class="bg-slate-100">
+                <tr>
+                    <th class="p-3 text-left">Inspection</th>
+                    <th class="p-3">CHA</th>
+                    <th class="p-3">Amount</th>
+                    <th class="p-3">Status</th>
+                    <th class="p-3">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for com, ins, cha in rows %}
+                <tr class="border-t">
+                    <td class="p-3"><a class="underline"
+                            href="{{ url_for('inspection_detail', inspection_id=ins.id) }}">#{{ ins.id }}</a></td>
+                    <td class="p-3">{{ cha.name }}</td>
+                    <td class="p-3">₹{{ '%.2f'|format(com.amount or 0) }}</td>
+                    <td class="p-3">{{ com.status }}</td>
+                    <td class="p-3">
+                        <form method="post" action="{{ url_for('commission_mark', commission_id=com.id) }}"
+                            class="flex gap-2">
+                            <select name="status" class="border rounded px-2 py-1">
+                                {% for s in CommissionStatus.ALL %}<option value="{{ s }}" {% if com.status==s
+                                    %}selected{% endif %}>{{ s }}</option>{% endfor %}
+                            </select>
+                            <button class="px-3 py-1 bg-slate-900 text-white rounded">Update</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td class="p-3 text-slate-500" colspan="5">No data.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="p-3 border-b font-semibold">Summary</div>
+        <table class="w-full text-sm">
+            <thead class="bg-slate-100">
+                <tr>
+                    <th class="p-3 text-left">CHA</th>
+                    <th class="p-3">Status</th>
+                    <th class="p-3">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for name, status, total in summary %}
+                <tr class="border-t">
+                    <td class="p-3">{{ name }}</td>
+                    <td class="p-3">{{ status }}</td>
+                    <td class="p-3">₹{{ '%.2f'|format(total or 0) }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td class="p-3 text-slate-500" colspan="3">No data.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
