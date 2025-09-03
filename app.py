@@ -308,11 +308,25 @@ def dashboard():
     q = request.args.get("q")
 
     qry = Inspection.query
-    if date_from: qry = qry.filter(Inspection.date >= datetime.fromisoformat(date_from))
-    if date_to:   qry = qry.filter(Inspection.date <= datetime.fromisoformat(date_to))
-    if status:    qry = qry.filter(Inspection.status == status)
-    if cha_id:    qry = qry.filter(Inspection.cha_id == int(cha_id))
-    if eng_id:    qry = qry.filter(Inspection.engineer_id == int(eng_id))
+    # Inclusive start
+    if date_from:
+        df = datetime.fromisoformat(date_from)
+        qry = qry.filter(Inspection.date >= df)
+    # Inclusive end for whole-day inputs
+    if date_to:
+        dt = datetime.fromisoformat(date_to)
+        if len(date_to) == 10:  # yyyy-mm-dd
+            dt = dt + timedelta(days=1)
+            qry = qry.filter(Inspection.date < dt)
+        else:
+            qry = qry.filter(Inspection.date <= dt)
+
+    if status:
+        qry = qry.filter(Inspection.status == status)
+    if cha_id:
+        qry = qry.filter(Inspection.cha_id == int(cha_id))
+    if eng_id:
+        qry = qry.filter(Inspection.engineer_id == int(eng_id))
     if q:
         like = f"%{q}%"
         qry = qry.join(Client).filter(or_(Client.name.ilike(like), Inspection.location.ilike(like), Inspection.asset.ilike(like)))
@@ -368,7 +382,7 @@ def inspection_detail(inspection_id):
     inv = Invoice.query.filter_by(inspection_id=inspection_id).first()
     return render_template("inspection_detail.html", i=i, rep=rep, inv=inv)
 
-# NEW: edit inspection (ADMIN or assigned ENGINEER)
+# UPDATED: engineer can also update CHA for their own inspection
 @app.route("/inspections/<int:inspection_id>/edit", methods=["GET","POST"])
 @role_required(Role.ADMIN, Role.ENGINEER)
 def inspection_edit(inspection_id):
@@ -381,10 +395,15 @@ def inspection_edit(inspection_id):
         i.client_id = int(request.form["client_id"])
         i.location = request.form.get("location","")
         i.asset = request.form.get("asset","")
+
+        # Allow both roles to update CHA (engineer only on their own inspection)
+        if request.form.get("cha_id") is not None:
+            i.cha_id = int(request.form["cha_id"]) if request.form.get("cha_id") else None
+
         if session.get("role") == Role.ADMIN:
             i.status = request.form.get("status", i.status)
             i.engineer_id = int(request.form["engineer_id"]) if request.form.get("engineer_id") else i.engineer_id
-            i.cha_id = int(request.form["cha_id"]) if request.form.get("cha_id") else None
+
         db.session.commit()
         flash("Inspection updated.", "success")
         return redirect(url_for("inspection_detail", inspection_id=inspection_id))
@@ -501,6 +520,7 @@ def cha_tracker():
     )
     return render_template("cha.html", rows=rows, summary=summary)
 
+# UPDATED: only recalc on explicit request; otherwise preserve manual amount
 @app.route("/commissions/generate/<int:inspection_id>", methods=["POST"])
 @role_required(Role.ADMIN, Role.ACCOUNTANT)
 def commission_generate(inspection_id):
@@ -515,7 +535,8 @@ def commission_generate(inspection_id):
         com = Commission(inspection_id=inspection_id, cha_id=i.cha.id, amount=amount, status=CommissionStatus.DUE)
         db.session.add(com)
     else:
-        com.amount = amount
+        if request.form.get("recalc") == "1":
+            com.amount = amount
     db.session.commit()
     flash("Commission calculated.", "success")
     return redirect(url_for("inspection_detail", inspection_id=inspection_id))

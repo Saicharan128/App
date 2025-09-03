@@ -12,10 +12,12 @@
         <div>
             <label class="text-xs">Client</label>
             <select name="client_id" required class="w-full border rounded px-2 py-1.5">
-                {% for c in clients %}<option value="{{ c.id }}" {% if i.client_id==c.id %}selected{% endif %}>{{ c.name
-                    }}</option>{% endfor %}
+                {% for c in clients %}
+                <option value="{{ c.id }}" {% if i.client_id==c.id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
             </select>
         </div>
+
         <div class="md:col-span-2">
             <label class="text-xs">Location</label>
             <input name="location" value="{{ i.location or '' }}" class="w-full border rounded px-2 py-1.5">
@@ -24,31 +26,47 @@
             <label class="text-xs">Asset</label>
             <input name="asset" value="{{ i.asset or '' }}" class="w-full border rounded px-2 py-1.5">
         </div>
+
         {% if session.get('role') == Role.ADMIN %}
         <div>
             <label class="text-xs">Status</label>
             <select name="status" class="w-full border rounded px-2 py-1.5">
-                {% for s in InspectionStatus.ALL %}<option value="{{ s }}" {% if i.status==s %}selected{% endif %}>{{ s
-                    }}</option>{% endfor %}
+                {% for s in InspectionStatus.ALL %}
+                <option value="{{ s }}" {% if i.status==s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
             </select>
         </div>
         <div>
             <label class="text-xs">Engineer</label>
             <select name="engineer_id" class="w-full border rounded px-2 py-1.5">
                 <option value="">—</option>
-                {% for e in engineers %}<option value="{{ e.id }}" {% if i.engineer_id==e.id %}selected{% endif %}>{{
-                    e.name }}</option>{% endfor %}
+                {% for e in engineers %}
+                <option value="{{ e.id }}" {% if i.engineer_id==e.id %}selected{% endif %}>{{ e.name }}</option>
+                {% endfor %}
             </select>
         </div>
         <div class="md:col-span-2">
             <label class="text-xs">CHA</label>
             <select name="cha_id" class="w-full border rounded px-2 py-1.5">
                 <option value="">—</option>
-                {% for c in chas %}<option value="{{ c.id }}" {% if i.cha_id==c.id %}selected{% endif %}>{{ c.name }}
-                </option>{% endfor %}
+                {% for c in chas %}
+                <option value="{{ c.id }}" {% if i.cha_id==c.id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% else %}
+        {# ENGINEER: allow selecting CHA for own inspection #}
+        <div class="md:col-span-2">
+            <label class="text-xs">CHA</label>
+            <select name="cha_id" class="w-full border rounded px-2 py-1.5">
+                <option value="">—</option>
+                {% for c in chas %}
+                <option value="{{ c.id }}" {% if i.cha_id==c.id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
             </select>
         </div>
         {% endif %}
+
         <div class="md:col-span-2 flex gap-2">
             <button class="bg-slate-900 text-white rounded px-4 py-2">Save</button>
             <a href="{{ url_for('inspection_detail', inspection_id=i.id) }}" class="rounded border px-4 py-2">Cancel</a>

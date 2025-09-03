@@ -3,32 +3,43 @@
 {% block content %}
 <div class="bg-white rounded-lg shadow p-5 mb-6">
     <form method="get" class="grid md:grid-cols-6 gap-3 items-end">
-        <div><label class="text-xs">From</label><input type="date" name="from" value="{{ request.args.get('from','') }}"
-                class="w-full border rounded px-2 py-1.5"></div>
-        <div><label class="text-xs">To</label><input type="date" name="to" value="{{ request.args.get('to','') }}"
-                class="w-full border rounded px-2 py-1.5"></div>
+        <div>
+            <label class="text-xs">From</label>
+            <input type="date" name="from" value="{{ request.args.get('from','') }}"
+                class="w-full border rounded px-2 py-1.5">
+        </div>
+        <div>
+            <label class="text-xs">To</label>
+            <input type="date" name="to" value="{{ request.args.get('to','') }}"
+                class="w-full border rounded px-2 py-1.5">
+        </div>
         <div>
             <label class="text-xs">Status</label>
             <select name="status" class="w-full border rounded px-2 py-1.5">
                 <option value="">Any</option>
-                {% for s in InspectionStatus.ALL %}<option value="{{ s }}" {% if request.args.get('status')==s
-                    %}selected{% endif %}>{{ s }}</option>{% endfor %}
+                {% for s in InspectionStatus.ALL %}
+                <option value="{{ s }}" {% if request.args.get('status')==s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
             </select>
         </div>
         <div>
             <label class="text-xs">CHA</label>
             <select name="cha_id" class="w-full border rounded px-2 py-1.5">
                 <option value="">Any</option>
-                {% for c in chas %}<option value="{{ c.id }}" {% if request.args.get('cha_id', type=int)==c.id
-                    %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+                {% for c in chas %}
+                <option value="{{ c.id }}" {% if request.args.get('cha_id', type=int)==c.id %}selected{% endif %}>{{
+                    c.name }}</option>
+                {% endfor %}
             </select>
         </div>
         <div>
             <label class="text-xs">Engineer</label>
             <select name="engineer_id" class="w-full border rounded px-2 py-1.5">
                 <option value="">Any</option>
-                {% for e in engineers %}<option value="{{ e.id }}" {% if request.args.get('engineer_id', type=int)==e.id
-                    %}selected{% endif %}>{{ e.name }}</option>{% endfor %}
+                {% for e in engineers %}
+                <option value="{{ e.id }}" {% if request.args.get('engineer_id', type=int)==e.id %}selected{% endif %}>
+                    {{ e.name }}</option>
+                {% endfor %}
             </select>
         </div>
         <div class="md:col-span-6 flex gap-2">

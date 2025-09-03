@@ -65,7 +65,7 @@
                     {% set want_st = request.args.get('status') %}
                     {% if (not want_cha or cha.name == want_cha) and (not want_st or com.status == want_st) %}
                     <tr class="border-t align-top">
-                        <!-- Inspection & meta (wrap long info into subline) -->
+                        <!-- Inspection & meta -->
                         <td class="p-3">
                             <div class="whitespace-nowrap">
                                 <a class="underline" href="{{ url_for('inspection_detail', inspection_id=ins.id) }}">#{{
@@ -102,7 +102,7 @@
                             </form>
                         </td>
 
-                        <!-- Status (compact) -->
+                        <!-- Status -->
                         <td class="p-3">
                             <form method="post" action="{{ url_for('commission_mark', commission_id=com.id) }}"
                                 class="flex items-center gap-2">
@@ -119,6 +119,7 @@
                         <!-- Actions -->
                         <td class="p-3 text-center">
                             <form method="post" action="{{ url_for('commission_generate', inspection_id=ins.id) }}">
+                                <input type="hidden" name="recalc" value="1">
                                 <button class="rounded px-2 py-1 border w-full md:w-auto">Recalc</button>
                             </form>
                             <div class="text-[10px] text-slate-500 mt-1">Invoice fee × CHA rate</div>
