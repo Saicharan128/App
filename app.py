@@ -43,7 +43,7 @@ class CommissionStatus:
     PAID = "PAID"
     ALL = [DUE, PARTIAL, PAID]
 
-# ===== Models (explicit table names) =====
+# ===== Models =====
 class User(db.Model):
     __tablename__ = "user"
     id = db.Column(db.Integer, primary_key=True)
@@ -230,7 +230,7 @@ def users_admin():
     users = User.query.order_by(User.id.asc()).all()
     return render_template("users.html", users=users)
 
-# ===== Clients CRUD (endpoints aligned with templates) =====
+# ===== Clients =====
 @app.route("/clients", methods=["GET","POST"], endpoint="clients_list")
 @role_required(Role.ADMIN)
 def clients_list():
@@ -255,7 +255,7 @@ def clients_delete(cid):
     flash("Client deleted.", "info")
     return redirect(url_for("clients_list"))
 
-# ===== CHAs CRUD (endpoints aligned with templates) =====
+# ===== CHAs (mgmt list) =====
 @app.route("/chas", methods=["GET","POST"], endpoint="chas_list")
 @role_required(Role.ADMIN)
 def chas_list():
@@ -278,6 +278,22 @@ def chas_delete(cha_id):
     obj = CHA.query.get_or_404(cha_id)
     db.session.delete(obj); db.session.commit()
     flash("CHA deleted.", "info")
+    return redirect(url_for("chas_list"))
+
+# NEW: Admin can update CHA fields
+@app.route("/chas/<int:cha_id>/update", methods=["POST"], endpoint="chas_update")
+@role_required(Role.ADMIN)
+def chas_update(cha_id):
+    obj = CHA.query.get_or_404(cha_id)
+    obj.name = request.form.get("name", obj.name).strip()
+    obj.contact = request.form.get("contact", obj.contact)
+    try:
+        rate = float(request.form.get("commission_rate", obj.commission_rate or 0))
+        obj.commission_rate = max(0.0, min(rate, 100.0))
+    except ValueError:
+        flash("Invalid commission rate.", "warning"); return redirect(url_for("chas_list"))
+    db.session.commit()
+    flash("CHA updated.", "success")
     return redirect(url_for("chas_list"))
 
 # ===== Dashboard / Search =====
@@ -323,8 +339,9 @@ def global_search():
     return render_template("search_results.html", q=q, inspections=inspections, clients=clients, invoices=invoices)
 
 # ===== Inspections =====
+# UPDATED: allow ADMIN and ENGINEER to create; default engineer to self for ENGINEER
 @app.route("/inspections/new", methods=["POST"])
-@role_required(Role.ADMIN)
+@role_required(Role.ADMIN, Role.ENGINEER)
 def inspection_create():
     i = Inspection(
         date=datetime.fromisoformat(request.form["date"]),
@@ -332,7 +349,11 @@ def inspection_create():
         location=request.form.get("location",""),
         asset=request.form.get("asset",""),
         status=request.form.get("status", InspectionStatus.PENDING),
-        engineer_id=int(request.form["engineer_id"]) if request.form.get("engineer_id") else None,
+        engineer_id=(
+            int(request.form["engineer_id"])
+            if request.form.get("engineer_id")
+            else session.get("user_id") if session.get("role") == Role.ENGINEER else None
+        ),
         cha_id=int(request.form["cha_id"]) if request.form.get("cha_id") else None
     )
     db.session.add(i); db.session.commit()
@@ -347,11 +368,49 @@ def inspection_detail(inspection_id):
     inv = Invoice.query.filter_by(inspection_id=inspection_id).first()
     return render_template("inspection_detail.html", i=i, rep=rep, inv=inv)
 
+# NEW: edit inspection (ADMIN or assigned ENGINEER)
+@app.route("/inspections/<int:inspection_id>/edit", methods=["GET","POST"])
+@role_required(Role.ADMIN, Role.ENGINEER)
+def inspection_edit(inspection_id):
+    i = Inspection.query.get_or_404(inspection_id)
+    if session.get("role") == Role.ENGINEER and i.engineer_id != session.get("user_id"):
+        flash("Unauthorized.", "danger"); return redirect(url_for("inspection_detail", inspection_id=inspection_id))
+
+    if request.method == "POST":
+        i.date = datetime.fromisoformat(request.form["date"])
+        i.client_id = int(request.form["client_id"])
+        i.location = request.form.get("location","")
+        i.asset = request.form.get("asset","")
+        if session.get("role") == Role.ADMIN:
+            i.status = request.form.get("status", i.status)
+            i.engineer_id = int(request.form["engineer_id"]) if request.form.get("engineer_id") else i.engineer_id
+            i.cha_id = int(request.form["cha_id"]) if request.form.get("cha_id") else None
+        db.session.commit()
+        flash("Inspection updated.", "success")
+        return redirect(url_for("inspection_detail", inspection_id=inspection_id))
+
+    clients = Client.query.order_by(Client.name.asc()).all()
+    chas = CHA.query.order_by(CHA.name.asc()).all()
+    engineers = User.query.filter(User.role == Role.ENGINEER).all()
+    return render_template("inspection_edit.html", i=i, clients=clients, chas=chas, engineers=engineers)
+
+# NEW: admin delete inspection (cleans dependents)
+@app.route("/inspections/<int:inspection_id>/delete", methods=["POST"])
+@role_required(Role.ADMIN)
+def inspection_delete(inspection_id):
+    i = Inspection.query.get_or_404(inspection_id)
+    Report.query.filter_by(inspection_id=inspection_id).delete()
+    Invoice.query.filter_by(inspection_id=inspection_id).delete()
+    Commission.query.filter_by(inspection_id=inspection_id).delete()
+    db.session.delete(i)
+    db.session.commit()
+    flash("Inspection deleted.", "info")
+    return redirect(url_for("dashboard"))
+
 @app.route("/inspections/<int:inspection_id>/status", methods=["POST"])
 @role_required(Role.ADMIN, Role.ENGINEER)
 def inspection_status(inspection_id):
     i = Inspection.query.get_or_404(inspection_id)
-    # Engineers can only update their own inspections
     if session.get("role") == Role.ENGINEER and i.engineer_id != session.get("user_id"):
         flash("Unauthorized.", "danger"); return redirect(url_for("inspection_detail", inspection_id=inspection_id))
     i.status = request.form["status"]
@@ -468,6 +527,22 @@ def commission_mark(commission_id):
     com.status = request.form.get("status", CommissionStatus.PAID)
     db.session.commit()
     flash("Commission updated.", "success")
+    return redirect(url_for("cha_tracker"))
+
+# NEW: inline amount update (Admin/Accountant)
+@app.route("/commissions/<int:commission_id>/update", methods=["POST"])
+@role_required(Role.ADMIN, Role.ACCOUNTANT)
+def commission_update(commission_id):
+    com = Commission.query.get_or_404(commission_id)
+    amt_raw = request.form.get("amount", "").strip()
+    try:
+        amount = float(amt_raw)
+    except (TypeError, ValueError):
+        flash("Invalid amount.", "warning")
+        return redirect(url_for("cha_tracker"))
+    com.amount = round(max(0.0, amount), 2)
+    db.session.commit()
+    flash("Commission amount updated.", "success")
     return redirect(url_for("cha_tracker"))
 
 # ===== Templates =====

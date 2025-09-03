@@ -40,12 +40,14 @@
     </form>
 </div>
 
-{% if session.get('role') == Role.ADMIN %}
+{% if session.get('role') in [Role.ADMIN, Role.ENGINEER] %}
 <div class="bg-white rounded-lg shadow p-5 mb-8">
     <h2 class="font-semibold mb-3">Create Inspection</h2>
     <form method="post" action="{{ url_for('inspection_create') }}" class="grid md:grid-cols-6 gap-3">
-        <div class="md:col-span-2"><label class="text-xs">Date</label><input required type="datetime-local" name="date"
-                class="w-full border rounded px-2 py-1.5"></div>
+        <div class="md:col-span-2">
+            <label class="text-xs">Date</label>
+            <input required type="datetime-local" name="date" class="w-full border rounded px-2 py-1.5">
+        </div>
         <div class="md:col-span-2">
             <label class="text-xs">Client</label>
             <select name="client_id" required class="w-full border rounded px-2 py-1.5">
@@ -56,25 +58,43 @@
                 class="w-full border rounded px-2 py-1.5"></div>
         <div class="md:col-span-2"><label class="text-xs">Asset</label><input name="asset"
                 class="w-full border rounded px-2 py-1.5"></div>
-        <div><label class="text-xs">Status</label>
-            <select name="status" class="w-full border rounded px-2 py-1.5">{% for s in InspectionStatus.ALL %}<option
-                    value="{{ s }}">{{ s }}</option>{% endfor %}</select>
+
+        {% if session.get('role') == Role.ADMIN %}
+        <div>
+            <label class="text-xs">Status</label>
+            <select name="status" class="w-full border rounded px-2 py-1.5">
+                {% for s in InspectionStatus.ALL %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+            </select>
         </div>
         <div>
             <label class="text-xs">Engineer</label>
             <select name="engineer_id" class="w-full border rounded px-2 py-1.5">
-                <option value="">—</option>{% for e in engineers %}<option value="{{ e.id }}">{{ e.name }}</option>{%
-                endfor %}
+                <option value="">—</option>
+                {% for e in engineers %}<option value="{{ e.id }}">{{ e.name }}</option>{% endfor %}
             </select>
         </div>
         <div>
             <label class="text-xs">CHA</label>
             <select name="cha_id" class="w-full border rounded px-2 py-1.5">
-                <option value="">—</option>{% for c in chas %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor
-                %}
+                <option value="">—</option>
+                {% for c in chas %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
             </select>
         </div>
-        <div class="md:col-span-6"><button class="bg-slate-900 text-white rounded px-4 py-2">Create</button></div>
+        {% else %}
+        <input type="hidden" name="status" value="{{ InspectionStatus.PENDING }}">
+        <input type="hidden" name="engineer_id" value="{{ session.get('user_id') }}">
+        <div>
+            <label class="text-xs">CHA</label>
+            <select name="cha_id" class="w-full border rounded px-2 py-1.5">
+                <option value="">—</option>
+                {% for c in chas %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+        <div class="md:col-span-6">
+            <button class="bg-slate-900 text-white rounded px-4 py-2">Create</button>
+        </div>
     </form>
 </div>
 {% endif %}

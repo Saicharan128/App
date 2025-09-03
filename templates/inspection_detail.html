@@ -6,7 +6,20 @@
         <div class="bg-white rounded-lg shadow p-5">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-semibold">Inspection #{{ i.id }}</h1>
-                <span class="text-xs px-2 py-1 rounded bg-slate-100 border">{{ i.status }}</span>
+                <div class="flex items-center gap-2">
+                    {% if session.get('role') == Role.ADMIN or (session.get('role') == Role.ENGINEER and i.engineer_id
+                    == session.get('user_id')) %}
+                    <a class="px-3 py-1.5 rounded border"
+                        href="{{ url_for('inspection_edit', inspection_id=i.id) }}">Edit</a>
+                    {% endif %}
+                    {% if session.get('role') == Role.ADMIN %}
+                    <form method="post" action="{{ url_for('inspection_delete', inspection_id=i.id) }}"
+                        onsubmit="return confirm('Delete this inspection and related records?')">
+                        <button class="px-3 py-1.5 rounded border text-rose-700">Delete</button>
+                    </form>
+                    {% endif %}
+                    <span class="text-xs px-2 py-1 rounded bg-slate-100 border">{{ i.status }}</span>
+                </div>
             </div>
             <div class="mt-4 grid md:grid-cols-2 gap-3 text-sm">
                 <div>

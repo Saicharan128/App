@@ -1,71 +1,175 @@
 {% extends "base.html" %}
 {% block title %}CHA Tracker · IMS{% endblock %}
 {% block content %}
-<div class="grid md:grid-cols-2 gap-6">
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        <div class="p-3 border-b font-semibold">Commissions</div>
-        <table class="w-full text-sm">
-            <thead class="bg-slate-100">
-                <tr>
-                    <th class="p-3 text-left">Inspection</th>
-                    <th class="p-3">CHA</th>
-                    <th class="p-3">Amount</th>
-                    <th class="p-3">Status</th>
-                    <th class="p-3">Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for com, ins, cha in rows %}
-                <tr class="border-t">
-                    <td class="p-3"><a class="underline"
-                            href="{{ url_for('inspection_detail', inspection_id=ins.id) }}">#{{ ins.id }}</a></td>
-                    <td class="p-3">{{ cha.name }}</td>
-                    <td class="p-3">₹{{ '%.2f'|format(com.amount or 0) }}</td>
-                    <td class="p-3">{{ com.status }}</td>
-                    <td class="p-3">
-                        <form method="post" action="{{ url_for('commission_mark', commission_id=com.id) }}"
-                            class="flex gap-2">
-                            <select name="status" class="border rounded px-2 py-1">
-                                {% for s in CommissionStatus.ALL %}<option value="{{ s }}" {% if com.status==s
-                                    %}selected{% endif %}>{{ s }}</option>{% endfor %}
-                            </select>
-                            <button class="px-3 py-1 bg-slate-900 text-white rounded">Update</button>
-                        </form>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td class="p-3 text-slate-500" colspan="5">No data.</td>
-                </tr>
+
+<!-- Toolbar -->
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <form method="get" action="{{ url_for('cha_tracker') }}" class="flex flex-col md:flex-row gap-3 md:items-end">
+        <div class="flex-1">
+            <label class="text-xs">Search</label>
+            <input name="q" placeholder="Inspection #, Client, Location, Asset" value="{{ request.args.get('q','') }}"
+                class="w-full border rounded px-3 py-2">
+        </div>
+        <div class="min-w-[12rem]">
+            <label class="text-xs">CHA</label>
+            <select name="cha" class="w-full border rounded px-2 py-2">
+                <option value="">All</option>
+                {# derive unique CHA list from summary #}
+                {% set _seen = [] %}
+                {% for name, st, total in summary %}
+                {% if name not in _seen %}<option value="{{ name }}" {% if request.args.get('cha')==name %}selected{%
+                    endif %}>{{ name }}</option>{% set _ = _seen.append(name) %}{% endif %}
                 {% endfor %}
-            </tbody>
-        </table>
+            </select>
+        </div>
+        <div class="min-w-[12rem]">
+            <label class="text-xs">Status</label>
+            <select name="status" class="w-full border rounded px-2 py-2">
+                <option value="">All</option>
+                {% for s in CommissionStatus.ALL %}
+                <option value="{{ s }}" {% if request.args.get('status')==s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="flex gap-2">
+            <button class="bg-slate-900 text-white rounded px-4 py-2">Apply</button>
+            <a class="rounded border px-4 py-2" href="{{ url_for('cha_tracker') }}">Reset</a>
+        </div>
+    </form>
+</div>
+
+<div class="grid lg:grid-cols-3 gap-6">
+    <!-- Commissions (2/3 width on desktop) -->
+    <div class="lg:col-span-2 bg-white rounded-lg shadow">
+        <div class="p-3 border-b font-semibold flex items-center justify-between">
+            <span>Commissions</span>
+            <span class="text-xs text-slate-500">Inline edit amount · Update status · Recalc from invoice × rate</span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-100 sticky top-0 z-10">
+                    <tr>
+                        <th class="p-3 text-left whitespace-nowrap">Inspection</th>
+                        <th class="p-3 text-left whitespace-nowrap hidden md:table-cell">Client</th>
+                        <th class="p-3 text-left whitespace-nowrap">CHA</th>
+                        <th class="p-3 text-right whitespace-nowrap">Amount (₹)</th>
+                        <th class="p-3 text-left whitespace-nowrap">Status</th>
+                        <th class="p-3 text-center whitespace-nowrap">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for com, ins, cha in rows %}
+                    {# Optional client-side filtering for basic UX (server can ignore): #}
+                    {% set want_cha = request.args.get('cha') %}
+                    {% set want_st = request.args.get('status') %}
+                    {% if (not want_cha or cha.name == want_cha) and (not want_st or com.status == want_st) %}
+                    <tr class="border-t align-top">
+                        <!-- Inspection & meta (wrap long info into subline) -->
+                        <td class="p-3">
+                            <div class="whitespace-nowrap">
+                                <a class="underline" href="{{ url_for('inspection_detail', inspection_id=ins.id) }}">#{{
+                                    ins.id }}</a>
+                                <span class="text-xs ml-2 px-2 py-0.5 rounded bg-slate-100 border">{{
+                                    ins.date.strftime('%Y-%m-%d') }}</span>
+                            </div>
+                            <div class="text-xs text-slate-500 truncate max-w-[18rem]">
+                                {{ ins.location or '—' }} · {{ ins.asset or '—' }}
+                            </div>
+                        </td>
+
+                        <!-- Client (hidden on mobile) -->
+                        <td class="p-3 hidden md:table-cell">
+                            <div class="truncate max-w-[14rem]">{{ ins.client.name if ins.client else '—' }}</div>
+                        </td>
+
+                        <!-- CHA -->
+                        <td class="p-3">
+                            <span class="whitespace-nowrap">{{ cha.name }}</span>
+                            {% if ins.cha_id != cha.id %}
+                            <div class="text-[10px] text-amber-700">Linked mismatch</div>
+                            {% endif %}
+                        </td>
+
+                        <!-- Amount (inline edit) -->
+                        <td class="p-3">
+                            <form method="post" action="{{ url_for('commission_update', commission_id=com.id) }}"
+                                class="flex items-center gap-2 justify-end md:justify-end">
+                                <input name="amount" type="number" step="0.01" min="0"
+                                    value="{{ '%.2f'|format(com.amount or 0) }}"
+                                    class="border rounded px-2 py-1 w-28 text-right">
+                                <button class="rounded px-2 py-1 bg-slate-900 text-white">Save</button>
+                            </form>
+                        </td>
+
+                        <!-- Status (compact) -->
+                        <td class="p-3">
+                            <form method="post" action="{{ url_for('commission_mark', commission_id=com.id) }}"
+                                class="flex items-center gap-2">
+                                <select name="status" class="border rounded px-2 py-1">
+                                    {% for s in CommissionStatus.ALL %}
+                                    <option value="{{ s }}" {% if com.status==s %}selected{% endif %}>{{ s }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button class="px-2 py-1 bg-slate-900 text-white rounded">Update</button>
+                            </form>
+                            <div class="text-[10px] text-slate-500 mt-1">Current: {{ com.status }}</div>
+                        </td>
+
+                        <!-- Actions -->
+                        <td class="p-3 text-center">
+                            <form method="post" action="{{ url_for('commission_generate', inspection_id=ins.id) }}">
+                                <button class="rounded px-2 py-1 border w-full md:w-auto">Recalc</button>
+                            </form>
+                            <div class="text-[10px] text-slate-500 mt-1">Invoice fee × CHA rate</div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% else %}
+                    <tr>
+                        <td class="p-3 text-slate-500" colspan="6">No data.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
-    <div class="bg-white rounded-lg shadow overflow-hidden">
+    <!-- Summary (1/3 width on desktop) -->
+    <div class="bg-white rounded-lg shadow h-fit">
         <div class="p-3 border-b font-semibold">Summary</div>
-        <table class="w-full text-sm">
-            <thead class="bg-slate-100">
-                <tr>
-                    <th class="p-3 text-left">CHA</th>
-                    <th class="p-3">Status</th>
-                    <th class="p-3">Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for name, status, total in summary %}
-                <tr class="border-t">
-                    <td class="p-3">{{ name }}</td>
-                    <td class="p-3">{{ status }}</td>
-                    <td class="p-3">₹{{ '%.2f'|format(total or 0) }}</td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td class="p-3 text-slate-500" colspan="3">No data.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="p-3">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-100">
+                        <tr>
+                            <th class="p-3 text-left">CHA</th>
+                            <th class="p-3">Status</th>
+                            <th class="p-3 text-right">Total (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name, status, total in summary %}
+                        <tr class="border-t">
+                            <td class="p-3 truncate max-w-[12rem]">{{ name }}</td>
+                            <td class="p-3">
+                                <span class="text-xs px-2 py-0.5 rounded bg-slate-100 border whitespace-nowrap">{{
+                                    status }}</span>
+                            </td>
+                            <td class="p-3 text-right whitespace-nowrap">{{ '%.2f'|format(total or 0) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td class="p-3 text-slate-500" colspan="3">No data.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="text-xs text-slate-500 mt-3">
+                Tip: Use <em>Save</em> to override, or <em>Recalc</em> to recompute from Invoice × Rate.
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
