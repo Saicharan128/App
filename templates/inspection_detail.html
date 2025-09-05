@@ -1,11 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Inspection #{{ i.id }} · IMS{% endblock %}
+{% block title %}Inspection {{ i.public_id or ('#' ~ i.id) }} · IMS{% endblock %}
 {% block content %}
 <div class="grid lg:grid-cols-3 gap-6">
+    <!-- Left: Core & Type-Specific -->
     <div class="lg:col-span-2 space-y-6">
+
+        <!-- Header / Core -->
         <div class="bg-white rounded-lg shadow p-5">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-semibold">Inspection #{{ i.id }}</h1>
+                <h1 class="text-lg font-semibold">
+                    Inspection {{ i.public_id or ('#' ~ i.id) }}
+                </h1>
                 <div class="flex items-center gap-2">
                     {% if session.get('role') == Role.ADMIN or (session.get('role') == Role.ENGINEER and i.engineer_id
                     == session.get('user_id')) %}
@@ -21,6 +26,15 @@
                     <span class="text-xs px-2 py-1 rounded bg-slate-100 border">{{ i.status }}</span>
                 </div>
             </div>
+
+            <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                <span class="px-2 py-0.5 rounded bg-slate-100 border">
+                    {{ InspectionType.CODE_TO_LABEL.get(i.inspection_type, i.inspection_type) }}
+                </span>
+                {% if i.seq_num %}<span class="px-2 py-0.5 rounded bg-slate-100 border">Seq: {{ i.seq_num }}</span>{%
+                endif %}
+            </div>
+
             <div class="mt-4 grid md:grid-cols-2 gap-3 text-sm">
                 <div>
                     <div class="text-slate-500">Date</div>
@@ -46,47 +60,149 @@
                     <div class="text-slate-500">CHA</div>
                     <div>{{ i.cha.name if i.cha else '—' }}</div>
                 </div>
-            </div>
-        </div>
-
-        <div class="grid md:grid-cols-2 gap-6">
-            <div class="bg-white rounded-lg shadow p-5">
-                <h2 class="font-semibold mb-3">Report</h2>
-                {% if rep %}
-                <div class="text-sm mb-3">Status: <span class="px-2 py-1 rounded bg-slate-100 border">{{ rep.status
-                        }}</span></div>
-                <div class="flex gap-2">
-                    <a class="rounded px-3 py-1.5 bg-slate-900 text-white"
-                        href="{{ url_for('report_edit', inspection_id=i.id) }}">Edit</a>
-                    <a class="rounded px-3 py-1.5 border"
-                        href="{{ url_for('report_view', inspection_id=i.id) }}">View</a>
+                <div>
+                    <div class="text-slate-500">Forwarder / CHA Name</div>
+                    <div>{{ i.forwarder_name or '—' }}</div>
                 </div>
-                {% else %}
+                <div>
+                    <div class="text-slate-500">CHA Commission % (override)</div>
+                    <div>{{ i.cha_commission_pct if i.cha_commission_pct is not none else '—' }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Type-Specific Fields -->
+        <div class="bg-white rounded-lg shadow p-5">
+            <h2 class="font-semibold mb-3">Type-Specific Details</h2>
+
+            {% if i.inspection_type == 'PSIC' %}
+            <div class="grid md:grid-cols-2 gap-3 text-sm">
+                <div>
+                    <div class="text-slate-500">Scrap Type</div>
+                    <div>{{ i.scrap_type or '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500"># Containers</div>
+                    <div>{{ i.container_count if i.container_count is not none else '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">Total Weight (tons)</div>
+                    <div>{{ i.container_weight if i.container_weight is not none else '—' }}</div>
+                </div>
+                <div class="md:col-span-2">
+                    <div class="text-slate-500">Notes</div>
+                    <div class="whitespace-pre-wrap">{{ i.container_notes or '—' }}</div>
+                </div>
+            </div>
+            {% elif i.inspection_type == 'CE_VAL' %}
+            <div class="grid md:grid-cols-2 gap-3 text-sm">
+                <div>
+                    <div class="text-slate-500">Machinery Type</div>
+                    <div>{{ i.machinery_type or '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">Year of Manufacture</div>
+                    <div>{{ i.year_of_manufacture if i.year_of_manufacture else '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">Original CIF Value</div>
+                    <div>{{ i.original_cif_value if i.original_cif_value is not none else '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">Depreciation % (auto)</div>
+                    <div>{{ i.depreciation_pct if i.depreciation_pct is not none else '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">Residual Value (auto)</div>
+                    <div>{{ i.residual_value if i.residual_value is not none else '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">Balance Useful Life</div>
+                    <div>{{ i.balance_useful_life or '—' }}</div>
+                </div>
+            </div>
+            {% elif i.inspection_type == 'CE_FIT' %}
+            <div class="grid gap-3 text-sm">
+                <div>
+                    <div class="text-slate-500">Machinery / Goods Details</div>
+                    <div class="whitespace-pre-wrap">{{ i.goods_details or '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">Condition Notes</div>
+                    <div class="whitespace-pre-wrap">{{ i.condition_notes or '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">Fair Market Value</div>
+                    <div>{{ i.fair_market_value if i.fair_market_value is not none else '—' }}</div>
+                </div>
+            </div>
+            {% else %}
+            <div class="text-sm text-slate-500">No type-specific data.</div>
+            {% endif %}
+        </div>
+
+        <!-- Report -->
+        <div class="bg-white rounded-lg shadow p-5">
+            <div class="flex items-center justify-between">
+                <h2 class="font-semibold">Report</h2>
+                <div class="text-sm">
+                    {% if rep %}<span class="px-2 py-0.5 rounded bg-slate-100 border">Status: {{ rep.status }}</span>{%
+                    endif %}
+                </div>
+            </div>
+
+            <div class="mt-3 flex gap-2">
                 <a class="rounded px-3 py-1.5 bg-slate-900 text-white"
-                    href="{{ url_for('report_edit', inspection_id=i.id) }}">Create</a>
+                    href="{{ url_for('report_edit', inspection_id=i.id) }}">Generate / Upload</a>
+                {% if rep %}
+                <a class="rounded px-3 py-1.5 border" href="{{ url_for('report_view', inspection_id=i.id) }}">View</a>
                 {% endif %}
             </div>
 
-            <div class="bg-white rounded-lg shadow p-5">
-                <h2 class="font-semibold mb-3">Invoice</h2>
+            {% if latest_file %}
+            <div class="mt-4 text-sm border-t pt-3">
+                <div class="text-slate-500 mb-1">Latest Uploaded File</div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <a class="underline" href="{{ url_for('report_download', file_id=latest_file.id) }}">{{
+                        latest_file.original_name }}</a>
+                    <span class="text-xs px-2 py-0.5 rounded bg-slate-100 border">{{ latest_file.mimetype or 'file'
+                        }}</span>
+                    <span class="text-xs text-slate-500">on {{ latest_file.uploaded_at.strftime('%Y-%m-%d %H:%M')
+                        }}</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Invoice -->
+        <div class="bg-white rounded-lg shadow p-5">
+            <div class="flex items-center justify-between">
+                <h2 class="font-semibold">Invoice</h2>
                 {% if inv %}
-                <div class="text-sm mb-3">Status: <span class="px-2 py-1 rounded bg-slate-100 border">{{ inv.status
-                        }}</span> · Total: ₹{{ '%.2f'|format(inv.total) }}</div>
+                <div class="text-sm">
+                    <span class="px-2 py-0.5 rounded bg-slate-100 border">{{ inv.status }}</span>
+                    <span class="ml-2">Total: ₹{{ '%.2f'|format(inv.total or 0) }}</span>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="mt-3">
                 {% if session.get('role') in [Role.ADMIN, Role.ACCOUNTANT] %}
                 <a class="rounded px-3 py-1.5 bg-slate-900 text-white"
-                    href="{{ url_for('invoice_edit', inspection_id=i.id) }}">Edit</a>
-                {% endif %}
+                    href="{{ url_for('invoice_edit', inspection_id=i.id) }}">
+                    {{ 'Edit' if inv else 'Create' }}
+                </a>
                 {% else %}
-                {% if session.get('role') in [Role.ADMIN, Role.ACCOUNTANT] %}
-                <a class="rounded px-3 py-1.5 bg-slate-900 text-white"
-                    href="{{ url_for('invoice_edit', inspection_id=i.id) }}">Create</a>
-                {% endif %}
+                <div class="text-sm text-slate-500">No permission.</div>
                 {% endif %}
             </div>
         </div>
+
     </div>
 
+    <!-- Right: Status / Assign / Commission -->
     <div class="space-y-6">
+
         {% if session.get('role') in [Role.ADMIN, Role.ENGINEER] %}
         <div class="bg-white rounded-lg shadow p-5">
             <h2 class="font-semibold mb-3">Update Status</h2>
@@ -98,6 +214,7 @@
                 </select>
                 <button class="bg-slate-900 text-white rounded px-3">Update</button>
             </form>
+            <div class="text-xs text-slate-500 mt-2">Workflow: Draft → Under Review → Completed → Report Uploaded</div>
         </div>
         {% endif %}
 
@@ -122,7 +239,7 @@
             {% if i.cha %}
             <form method="post" action="{{ url_for('commission_generate', inspection_id=i.id) }}">
                 <input type="hidden" name="recalc" value="1">
-                <button class="bg-slate-900 text-white rounded px-3 py-1.5">Generate/Recalc</button>
+                <button class="bg-slate-900 text-white rounded px-3 py-1.5">Generate / Recalc</button>
             </form>
 
             {% if i.commission %}
@@ -131,7 +248,7 @@
                     <form method="post" action="{{ url_for('commission_update', commission_id=i.commission.id) }}"
                         class="flex gap-2 items-center">
                         <input name="amount" type="number" step="0.01" min="0"
-                            value="{{ '%.2f'|format(i.commission.amount) }}"
+                            value="{{ '%.2f'|format(i.commission.amount or 0) }}"
                             class="border rounded px-2 py-1 w-28 text-right">
                         <button class="rounded bg-slate-900 text-white px-3 py-1">Save</button>
                     </form>
@@ -144,6 +261,7 @@
             {% endif %}
         </div>
         {% endif %}
+
     </div>
 </div>
 {% endblock %}

@@ -1,14 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Edit Inspection · #{{ i.id }}{% endblock %}
+{% block title %}Edit Inspection · {{ i.public_id or ('#' ~ i.id) }}{% endblock %}
 {% block content %}
-<div class="bg-white rounded-lg shadow p-5 max-w-3xl">
-    <h1 class="text-lg font-semibold mb-4">Edit Inspection #{{ i.id }}</h1>
+<div class="bg-white rounded-lg shadow p-5 max-w-4xl">
+    <h1 class="text-lg font-semibold mb-4">Edit Inspection {{ i.public_id or ('#' ~ i.id) }}</h1>
     <form method="post" class="grid md:grid-cols-2 gap-4">
+
         <div>
             <label class="text-xs">Date</label>
             <input required type="datetime-local" name="date" value="{{ i.date.strftime('%Y-%m-%dT%H:%M') }}"
                 class="w-full border rounded px-2 py-1.5">
         </div>
+
         <div>
             <label class="text-xs">Client</label>
             <select name="client_id" required class="w-full border rounded px-2 py-1.5">
@@ -18,10 +20,22 @@
             </select>
         </div>
 
-        <div class="md:col-span-2">
+        <div>
+            <label class="text-xs">Inspection Type</label>
+            <select name="inspection_type" id="inspection_type" class="w-full border rounded px-2 py-1.5">
+                {% for t in InspectionType.ALL %}
+                <option value="{{ t }}" {% if i.inspection_type==t %}selected{% endif %}>
+                    {{ InspectionType.CODE_TO_LABEL.get(t,t) }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
             <label class="text-xs">Location</label>
             <input name="location" value="{{ i.location or '' }}" class="w-full border rounded px-2 py-1.5">
         </div>
+
         <div class="md:col-span-2">
             <label class="text-xs">Asset</label>
             <input name="asset" value="{{ i.asset or '' }}" class="w-full border rounded px-2 py-1.5">
@@ -45,32 +59,82 @@
                 {% endfor %}
             </select>
         </div>
-        <div class="md:col-span-2">
-            <label class="text-xs">CHA</label>
-            <select name="cha_id" class="w-full border rounded px-2 py-1.5">
-                <option value="">—</option>
-                {% for c in chas %}
-                <option value="{{ c.id }}" {% if i.cha_id==c.id %}selected{% endif %}>{{ c.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        {% else %}
-        {# ENGINEER: allow selecting CHA for own inspection #}
-        <div class="md:col-span-2">
-            <label class="text-xs">CHA</label>
-            <select name="cha_id" class="w-full border rounded px-2 py-1.5">
-                <option value="">—</option>
-                {% for c in chas %}
-                <option value="{{ c.id }}" {% if i.cha_id==c.id %}selected{% endif %}>{{ c.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
         {% endif %}
 
-        <div class="md:col-span-2 flex gap-2">
+        <div>
+            <label class="text-xs">CHA</label>
+            <select name="cha_id" class="w-full border rounded px-2 py-1.5">
+                <option value="">—</option>
+                {% for c in chas %}
+                <option value="{{ c.id }}" {% if i.cha_id==c.id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label class="text-xs">Forwarder / CHA Name</label>
+            <input name="forwarder_name" value="{{ i.forwarder_name or '' }}" class="w-full border rounded px-2 py-1.5">
+        </div>
+
+        <div>
+            <label class="text-xs">CHA Commission %</label>
+            <input name="cha_commission_pct" type="number" step="0.01" min="0" value="{{ i.cha_commission_pct or '' }}"
+                class="w-full border rounded px-2 py-1.5">
+        </div>
+
+        <!-- PSIC block -->
+        <div class="md:col-span-2 type-block" data-type="PSIC" {% if i.inspection_type!='PSIC' %}hidden{% endif %}>
+            <label class="text-xs">Scrap Type</label>
+            <input name="scrap_type" value="{{ i.scrap_type or '' }}" class="w-full border rounded px-2 py-1.5">
+            <label class="text-xs mt-2">Container Details</label>
+            <textarea name="container_details"
+                class="w-full border rounded px-2 py-1.5">{{ i.container_details or '' }}</textarea>
+        </div>
+
+        <!-- CE – Valuation block -->
+        <div class="md:col-span-2 type-block" data-type="CE_VAL" {% if i.inspection_type!='CE_VAL' %}hidden{% endif %}>
+            <label class="text-xs">Machinery Type</label>
+            <input name="machinery_type" value="{{ i.machinery_type or '' }}" class="w-full border rounded px-2 py-1.5">
+            <label class="text-xs mt-2">Year of Manufacture</label>
+            <input name="year_of_manufacture" type="number" value="{{ i.year_of_manufacture or '' }}"
+                class="w-full border rounded px-2 py-1.5">
+            <label class="text-xs mt-2">Original CIF Value</label>
+            <input name="original_cif_value" type="number" step="0.01" value="{{ i.original_cif_value or '' }}"
+                class="w-full border rounded px-2 py-1.5">
+            <label class="text-xs mt-2">Balance Useful Life</label>
+            <input name="balance_useful_life" value="{{ i.balance_useful_life or '' }}"
+                class="w-full border rounded px-2 py-1.5">
+        </div>
+
+        <!-- CE – Fitness block -->
+        <div class="md:col-span-2 type-block" data-type="CE_FIT" {% if i.inspection_type!='CE_FIT' %}hidden{% endif %}>
+            <label class="text-xs">Goods / Machinery Details</label>
+            <textarea name="goods_details"
+                class="w-full border rounded px-2 py-1.5">{{ i.goods_details or '' }}</textarea>
+            <label class="text-xs mt-2">Condition Notes</label>
+            <textarea name="condition_notes"
+                class="w-full border rounded px-2 py-1.5">{{ i.condition_notes or '' }}</textarea>
+            <label class="text-xs mt-2">Fair Market Value</label>
+            <input name="fair_market_value" type="number" step="0.01" value="{{ i.fair_market_value or '' }}"
+                class="w-full border rounded px-2 py-1.5">
+        </div>
+
+        <div class="md:col-span-2 flex gap-2 mt-4">
             <button class="bg-slate-900 text-white rounded px-4 py-2">Save</button>
             <a href="{{ url_for('inspection_detail', inspection_id=i.id) }}" class="rounded border px-4 py-2">Cancel</a>
         </div>
     </form>
 </div>
+
+<script>
+    (function () {
+        const sel = document.getElementById('inspection_type');
+        const blocks = document.querySelectorAll('.type-block');
+        function sync() {
+            blocks.forEach(b => b.hidden = (b.dataset.type !== sel.value));
+        }
+        sel.addEventListener('change', sync);
+        sync();
+    })();
+</script>
 {% endblock %}

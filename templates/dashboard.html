@@ -27,8 +27,8 @@
             <select name="cha_id" class="w-full border rounded px-2 py-1.5">
                 <option value="">Any</option>
                 {% for c in chas %}
-                <option value="{{ c.id }}" {% if request.args.get('cha_id', type=int)==c.id %}selected{% endif %}>{{
-                    c.name }}</option>
+                <option value="{{ c.id }}" {% if request.args.get('cha_id', type=int)==c.id %}selected{% endif %}>
+                    {{ c.name }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -43,7 +43,7 @@
             </select>
         </div>
         <div class="md:col-span-6 flex gap-2">
-            <input name="q" placeholder="Client / Location / Asset" value="{{ request.args.get('q','') }}"
+            <input name="q" placeholder="Client / Location / Asset / Public ID" value="{{ request.args.get('q','') }}"
                 class="flex-1 border rounded px-3 py-1.5">
             <button class="bg-slate-900 text-white rounded px-4">Filter</button>
             <a href="{{ url_for('dashboard') }}" class="rounded border px-3 py-1.5">Reset</a>
@@ -59,16 +59,31 @@
             <label class="text-xs">Date</label>
             <input required type="datetime-local" name="date" class="w-full border rounded px-2 py-1.5">
         </div>
+
         <div class="md:col-span-2">
             <label class="text-xs">Client</label>
             <select name="client_id" required class="w-full border rounded px-2 py-1.5">
                 {% for c in clients %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
             </select>
         </div>
-        <div class="md:col-span-2"><label class="text-xs">Location</label><input name="location"
-                class="w-full border rounded px-2 py-1.5"></div>
-        <div class="md:col-span-2"><label class="text-xs">Asset</label><input name="asset"
-                class="w-full border rounded px-2 py-1.5"></div>
+
+        <div class="md:col-span-2">
+            <label class="text-xs">Inspection Type</label>
+            <select name="inspection_type" id="inspection_type" class="w-full border rounded px-2 py-1.5">
+                {% for t in InspectionType.ALL %}
+                <option value="{{ t }}">{{ InspectionType.CODE_TO_LABEL.get(t,t) }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="md:col-span-2">
+            <label class="text-xs">Location</label>
+            <input name="location" class="w-full border rounded px-2 py-1.5">
+        </div>
+        <div class="md:col-span-2">
+            <label class="text-xs">Asset</label>
+            <input name="asset" class="w-full border rounded px-2 py-1.5" placeholder="Machine / Goods / Scrap">
+        </div>
 
         {% if session.get('role') == Role.ADMIN %}
         <div>
@@ -92,7 +107,7 @@
             </select>
         </div>
         {% else %}
-        <input type="hidden" name="status" value="{{ InspectionStatus.PENDING }}">
+        <input type="hidden" name="status" value="{{ InspectionStatus.DRAFT }}">
         <input type="hidden" name="engineer_id" value="{{ session.get('user_id') }}">
         <div>
             <label class="text-xs">CHA</label>
@@ -103,10 +118,112 @@
         </div>
         {% endif %}
 
+        <!-- Universal fields -->
+        <div class="md:col-span-2">
+            <label class="text-xs">Forwarder / CHA Name</label>
+            <input name="forwarder_name" class="w-full border rounded px-2 py-1.5" placeholder="Optional">
+        </div>
+        <div class="md:col-span-2">
+            <label class="text-xs">CHA Commission % (override)</label>
+            <input name="cha_commission_pct" type="number" min="0" step="0.01" class="w-full border rounded px-2 py-1.5"
+                placeholder="Leave blank to use CHA rate">
+        </div>
+
+        <!-- PSIC fields -->
+        <div class="md:col-span-6 type-block" data-type="PSIC">
+            <div class="grid md:grid-cols-4 gap-3">
+                <div>
+                    <label class="text-xs">Scrap Type</label>
+                    <select name="scrap_type" class="w-full border rounded px-2 py-1.5">
+                        <option value="">—</option>
+                        <option>Metal</option>
+                        <option>Plastic</option>
+                        <option>Paper</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs"># Containers</label>
+                    <input name="container_count" type="number" min="0" class="w-full border rounded px-2 py-1.5">
+                </div>
+                <div>
+                    <label class="text-xs">Total Weight (tons)</label>
+                    <input name="container_weight" type="number" step="0.01" min="0"
+                        class="w-full border rounded px-2 py-1.5">
+                </div>
+                <div class="md:col-span-1">
+                    <label class="text-xs">Notes</label>
+                    <input name="container_notes" class="w-full border rounded px-2 py-1.5" placeholder="Optional">
+                </div>
+            </div>
+        </div>
+
+        <!-- CE – Valuation & Depreciation fields -->
+        <div class="md:col-span-6 type-block" data-type="CE_VAL" hidden>
+            <div class="grid md:grid-cols-4 gap-3">
+                <div class="md:col-span-2">
+                    <label class="text-xs">Machinery Type</label>
+                    <input name="machinery_type" class="w-full border rounded px-2 py-1.5">
+                </div>
+                <div>
+                    <label class="text-xs">Year of Manufacture</label>
+                    <input name="year_of_manufacture" type="number" min="1900" max="2100"
+                        class="w-full border rounded px-2 py-1.5">
+                </div>
+                <div>
+                    <label class="text-xs">Original CIF Value</label>
+                    <input name="original_cif_value" type="number" step="0.01" min="0"
+                        class="w-full border rounded px-2 py-1.5">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="text-xs">Balance Useful Life (text)</label>
+                    <input name="balance_useful_life" class="w-full border rounded px-2 py-1.5"
+                        placeholder="e.g., 3 years">
+                </div>
+                <div class="md:col-span-2 text-xs text-slate-500 flex items-end">
+                    Depreciation % and Residual Value are auto-calculated on save.
+                </div>
+            </div>
+        </div>
+
+        <!-- CE – Fitness / Condition fields -->
+        <div class="md:col-span-6 type-block" data-type="CE_FIT" hidden>
+            <div class="grid md:grid-cols-3 gap-3">
+                <div class="md:col-span-3">
+                    <label class="text-xs">Machinery / Goods Details</label>
+                    <textarea name="goods_details" rows="2" class="w-full border rounded px-2 py-1.5"></textarea>
+                </div>
+                <div class="md:col-span-3">
+                    <label class="text-xs">Condition Notes</label>
+                    <textarea name="condition_notes" rows="2" class="w-full border rounded px-2 py-1.5"></textarea>
+                </div>
+                <div>
+                    <label class="text-xs">Fair Market Value</label>
+                    <input name="fair_market_value" type="number" step="0.01" min="0"
+                        class="w-full border rounded px-2 py-1.5">
+                </div>
+            </div>
+        </div>
+
         <div class="md:col-span-6">
             <button class="bg-slate-900 text-white rounded px-4 py-2">Create</button>
         </div>
     </form>
+
+    <script>
+        (function () {
+            const sel = document.getElementById('inspection_type');
+            const blocks = Array.from(document.querySelectorAll('.type-block'));
+            function sync() {
+                const val = sel.value;
+                blocks.forEach(b => {
+                    b.hidden = (b.dataset.type !== val);
+                });
+            }
+            sel.addEventListener('change', sync);
+            sync();
+        }());
+    </script>
 </div>
 {% endif %}
 
@@ -118,11 +235,18 @@
         <ul class="divide-y">
             {% for i in items %}
             <li class="p-3 text-sm">
-                <a class="font-medium underline" href="{{ url_for('inspection_detail', inspection_id=i.id) }}">#{{ i.id
-                    }} — {{ i.client.name if i.client else '—' }}</a>
-                <div class="text-slate-500">{{ i.date.strftime('%Y-%m-%d %H:%M') }} · {{ i.location or '—' }} · {{
-                    i.asset or '—' }}</div>
-                {% if i.engineer %}<div class="text-xs">Eng: {{ i.engineer.name }}</div>{% endif %}
+                <a class="font-medium underline" href="{{ url_for('inspection_detail', inspection_id=i.id) }}">
+                    {{ i.public_id or ('#' ~ i.id) }} — {{ i.client.name if i.client else '—' }}
+                </a>
+                <div class="text-slate-500">
+                    {{ i.date.strftime('%Y-%m-%d %H:%M') }} · {{ i.location or '—' }} · {{ i.asset or '—' }}
+                </div>
+                <div class="flex items-center gap-2 mt-1">
+                    <span class="text-[10px] px-2 py-0.5 rounded bg-slate-100 border">
+                        {{ InspectionType.CODE_TO_LABEL.get(i.inspection_type, i.inspection_type) }}
+                    </span>
+                    {% if i.engineer %}<div class="text-xs">Eng: {{ i.engineer.name }}</div>{% endif %}
+                </div>
             </li>
             {% else %}
             <li class="p-3 text-sm text-slate-500">No records.</li>

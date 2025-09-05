@@ -1,15 +1,31 @@
 from flask import (
-    Flask, render_template, request, redirect, url_for, flash, session
+    Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
 )
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, and_
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+import os
+from pathlib import Path
 
+# ===== App & Config =====
 app = Flask(__name__)
 app.secret_key = "dev-secret"  # change in prod
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///ims.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# uploads
+APP_ROOT = Path(__file__).resolve().parent
+UPLOAD_ROOT = APP_ROOT / "uploads" / "reports"
+UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+app.config["UPLOAD_FOLDER"] = str(UPLOAD_ROOT)
+ALLOWED_REPORT_EXT = {"pdf", "doc", "docx"}
+
+# simple depreciation schedule (cap at 70%)
+# You can tune these numbers without code changes.
+app.config["DEPR_RULE"] = dict(Y1=10.0, Y2=8.0, Y3=7.0, Y4PLUS=5.0, CAP=70.0)
+
 db = SQLAlchemy(app)
 
 # ===== Enums =====
@@ -19,12 +35,33 @@ class Role:
     ACCOUNTANT = "ACCOUNTANT"
     ALL = [ADMIN, ENGINEER, ACCOUNTANT]
 
+class InspectionType:
+    PSIC = "PSIC"
+    CE_VAL = "CE_VAL"   # CE – Valuation & Depreciation
+    CE_FIT = "CE_FIT"   # CE – Fitness / Condition
+    ALL = [PSIC, CE_VAL, CE_FIT]
+
+    CODE_TO_LABEL = {
+        PSIC: "PSIC",
+        CE_VAL: "CE – Valuation & Depreciation",
+        CE_FIT: "CE – Fitness / Condition Certificate"
+    }
+    CODE_TO_ID_TOKEN = {
+        PSIC: "PSIC",
+        CE_VAL: "CE-VAL",
+        CE_FIT: "CE-FIT",
+    }
+
 class InspectionStatus:
-    PENDING = "PENDING"
+    DRAFT = "DRAFT"
+    UNDER_REVIEW = "UNDER_REVIEW"
     COMPLETED = "COMPLETED"
+    REPORT_UPLOADED = "REPORT_UPLOADED"
     INVOICED = "INVOICED"
+    # Legacy values kept for backward compatibility with older data
+    PENDING = "PENDING"
     REPORT_GENERATED = "REPORT_GENERATED"
-    ALL = [PENDING, COMPLETED, INVOICED, REPORT_GENERATED]
+    ALL = [DRAFT, UNDER_REVIEW, COMPLETED, REPORT_UPLOADED, INVOICED]
 
 class InvoiceStatus:
     DRAFT = "DRAFT"
@@ -71,17 +108,49 @@ class CHA(db.Model):
 class Inspection(db.Model):
     __tablename__ = "inspection"
     id = db.Column(db.Integer, primary_key=True)
+
+    # Unique public id like INS-PSIC-2025-001
+    public_id = db.Column(db.String(40), unique=True, index=True)
+    seq_num = db.Column(db.Integer)  # sequence within type-year
+
     date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    inspection_type = db.Column(db.String(20), default=InspectionType.PSIC, nullable=False)
+
     client_id = db.Column(db.Integer, db.ForeignKey("client.id"))
     client = db.relationship("Client")
+
     location = db.Column(db.String(200))
     asset = db.Column(db.String(200))
-    status = db.Column(db.String(40), default=InspectionStatus.PENDING)
-    engineer_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    engineer = db.relationship("User")
+
+    # Universal: CHA / Forwarder + commission override
     cha_id = db.Column(db.Integer, db.ForeignKey("cha.id"))
     cha = db.relationship("CHA")
+    forwarder_name = db.Column(db.String(160))
+    cha_commission_pct = db.Column(db.Float)  # optional override of CHA.commission_rate
+
+    status = db.Column(db.String(40), default=InspectionStatus.DRAFT)
+    engineer_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    engineer = db.relationship("User")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # ---- PSIC fields ----
+    scrap_type = db.Column(db.String(40))  # Metal / Plastic / Paper / Other
+    container_count = db.Column(db.Integer)
+    container_weight = db.Column(db.Float)  # tons
+    container_notes = db.Column(db.Text)
+
+    # ---- CE – Valuation & Depreciation ----
+    machinery_type = db.Column(db.String(160))
+    year_of_manufacture = db.Column(db.Integer)
+    original_cif_value = db.Column(db.Float)
+    depreciation_pct = db.Column(db.Float)  # auto
+    residual_value = db.Column(db.Float)    # auto
+    balance_useful_life = db.Column(db.String(40))  # manual text like "3 years"
+
+    # ---- CE – Fitness / Condition ----
+    goods_details = db.Column(db.Text)
+    condition_notes = db.Column(db.Text)
+    fair_market_value = db.Column(db.Float)
 
 class Report(db.Model):
     __tablename__ = "report"
@@ -91,6 +160,18 @@ class Report(db.Model):
     status = db.Column(db.String(20), default=ReportStatus.DRAFT)
     body = db.Column(db.Text)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class ReportFile(db.Model):
+    __tablename__ = "report_file"
+    id = db.Column(db.Integer, primary_key=True)
+    inspection_id = db.Column(db.Integer, db.ForeignKey("inspection.id"))
+    inspection = db.relationship("Inspection", backref=db.backref("files", lazy="dynamic"))
+    uploader_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    uploader = db.relationship("User")
+    stored_name = db.Column(db.String(255))   # on-disk filename
+    original_name = db.Column(db.String(255))
+    mimetype = db.Column(db.String(80))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Invoice(db.Model):
     __tablename__ = "invoice"
@@ -154,11 +235,72 @@ def ensure_invoice(inspection_id, fee=0.0, tax_pct=18.0):
         db.session.add(inv); db.session.commit()
     return inv
 
+def allowed_report_file(filename: str) -> bool:
+    if not filename or "." not in filename:
+        return False
+    ext = filename.rsplit(".", 1)[1].lower()
+    return ext in ALLOWED_REPORT_EXT
+
+def generate_public_id(i: "Inspection"):
+    """Generate and assign public_id and seq_num for an inspection if missing."""
+    if i.public_id:
+        return
+    year = (i.date or datetime.utcnow()).year
+    type_token = InspectionType.CODE_TO_ID_TOKEN.get(i.inspection_type, "GEN")
+    # Find max seq for this type-year
+    max_seq = (
+        db.session.query(func.max(Inspection.seq_num))
+        .filter(and_(Inspection.inspection_type == i.inspection_type,
+                     func.strftime('%Y', Inspection.date) == str(year)))
+        .scalar()
+    )
+    next_seq = (max_seq or 0) + 1
+    i.seq_num = next_seq
+    i.public_id = f"INS-{type_token}-{year}-{next_seq:03d}"
+
+def compute_depreciation_pct(year_of_manufacture: int, on_date: datetime) -> float:
+    """Very simple piecewise yearly schedule, capped. Tunable via app.config['DEPR_RULE']."""
+    if not year_of_manufacture:
+        return 0.0
+    years = max(0, (on_date.year - int(year_of_manufacture)))
+    r = app.config["DEPR_RULE"]
+    pct = 0.0
+    if years >= 1:
+        pct += r["Y1"]
+    if years >= 2:
+        pct += r["Y2"]
+    if years >= 3:
+        pct += r["Y3"]
+    if years >= 4:
+        pct += r["Y4PLUS"] * (years - 3)
+    return min(pct, r["CAP"])
+
+def upsert_commission_from_inspection(i: "Inspection"):
+    """Create or update a Commission row based on invoice fee and CHA rate / override."""
+    rate = None
+    if i.cha_commission_pct is not None:
+        rate = i.cha_commission_pct
+    elif i.cha and i.cha.commission_rate is not None:
+        rate = i.cha.commission_rate
+    else:
+        rate = 0.0
+    fee = i.invoice.fee if getattr(i, "invoice", None) else 0.0
+    amount = round((fee or 0.0) * (rate or 0.0) / 100.0, 2)
+    com = Commission.query.filter_by(inspection_id=i.id).first()
+    if not com:
+        com = Commission(inspection_id=i.id, cha_id=i.cha_id, amount=amount, status=CommissionStatus.DUE)
+        db.session.add(com)
+    else:
+        com.cha_id = i.cha_id
+        com.amount = amount
+    db.session.commit()
+
 @app.context_processor
 def inject_globals():
     return dict(
         Role=Role, InspectionStatus=InspectionStatus, InvoiceStatus=InvoiceStatus,
-        ReportStatus=ReportStatus, CommissionStatus=CommissionStatus, now=datetime.utcnow, User=User
+        ReportStatus=ReportStatus, CommissionStatus=CommissionStatus, now=datetime.utcnow,
+        User=User, InspectionType=InspectionType
     )
 
 # ===== Auth =====
@@ -329,11 +471,18 @@ def dashboard():
         qry = qry.filter(Inspection.engineer_id == int(eng_id))
     if q:
         like = f"%{q}%"
-        qry = qry.join(Client).filter(or_(Client.name.ilike(like), Inspection.location.ilike(like), Inspection.asset.ilike(like)))
+        qry = qry.join(Client).filter(or_(
+            Client.name.ilike(like), Inspection.location.ilike(like),
+            Inspection.asset.ilike(like), Inspection.public_id.ilike(like)
+        ))
 
     inspections = qry.order_by(Inspection.date.desc()).all()
     groups = {s: [] for s in InspectionStatus.ALL}
-    for i in inspections: groups[i.status].append(i)
+    for i in inspections:
+        if i.status in groups:
+            groups[i.status].append(i)
+        else:
+            groups[InspectionStatus.DRAFT].append(i)  # bucket legacy
 
     chas = CHA.query.all()
     engineers = User.query.filter(User.role == Role.ENGINEER).all()
@@ -346,14 +495,14 @@ def global_search():
     q = request.args.get("q", "")
     like = f"%{q}%"
     inspections = Inspection.query.join(Client).filter(
-        or_(Client.name.ilike(like), Inspection.location.ilike(like), Inspection.asset.ilike(like))
+        or_(Client.name.ilike(like), Inspection.location.ilike(like), Inspection.asset.ilike(like), Inspection.public_id.ilike(like))
     ).all()
     clients = Client.query.filter(Client.name.ilike(like)).all()
     invoices = Invoice.query.join(Inspection).join(Client).filter(Client.name.ilike(like)).all()
     return render_template("search_results.html", q=q, inspections=inspections, clients=clients, invoices=invoices)
 
 # ===== Inspections =====
-# UPDATED: allow ADMIN and ENGINEER to create; default engineer to self for ENGINEER
+# allow ADMIN and ENGINEER to create; default engineer to self for ENGINEER
 @app.route("/inspections/new", methods=["POST"])
 @role_required(Role.ADMIN, Role.ENGINEER)
 def inspection_create():
@@ -362,15 +511,48 @@ def inspection_create():
         client_id=int(request.form["client_id"]),
         location=request.form.get("location",""),
         asset=request.form.get("asset",""),
-        status=request.form.get("status", InspectionStatus.PENDING),
+        status=request.form.get("status", InspectionStatus.DRAFT),
         engineer_id=(
             int(request.form["engineer_id"])
             if request.form.get("engineer_id")
             else session.get("user_id") if session.get("role") == Role.ENGINEER else None
         ),
-        cha_id=int(request.form["cha_id"]) if request.form.get("cha_id") else None
+        cha_id=int(request.form["cha_id"]) if request.form.get("cha_id") else None,
+        inspection_type=request.form.get("inspection_type", InspectionType.PSIC),
+        forwarder_name=request.form.get("forwarder_name","").strip() or None,
+        cha_commission_pct=(float(request.form.get("cha_commission_pct")) if request.form.get("cha_commission_pct") else None),
     )
+
+    # type-specific
+    t = i.inspection_type
+    if t == InspectionType.PSIC:
+        i.scrap_type = request.form.get("scrap_type") or None
+        i.container_count = (int(request.form.get("container_count")) if request.form.get("container_count") else None)
+        i.container_weight = (float(request.form.get("container_weight")) if request.form.get("container_weight") else None)
+        i.container_notes = request.form.get("container_notes") or None
+
+    elif t == InspectionType.CE_VAL:
+        i.machinery_type = request.form.get("machinery_type") or None
+        i.year_of_manufacture = (int(request.form.get("year_of_manufacture")) if request.form.get("year_of_manufacture") else None)
+        i.original_cif_value = (float(request.form.get("original_cif_value")) if request.form.get("original_cif_value") else None)
+        # auto depreciation and residual
+        dep_pct = compute_depreciation_pct(i.year_of_manufacture or 0, i.date)
+        i.depreciation_pct = dep_pct
+        if i.original_cif_value is not None:
+            i.residual_value = round(max(0.0, (i.original_cif_value or 0.0) * (1 - dep_pct/100.0)), 2)
+        i.balance_useful_life = request.form.get("balance_useful_life") or None
+
+    elif t == InspectionType.CE_FIT:
+        i.goods_details = request.form.get("goods_details") or None
+        i.condition_notes = request.form.get("condition_notes") or None
+        i.fair_market_value = (float(request.form.get("fair_market_value")) if request.form.get("fair_market_value") else None)
+
     db.session.add(i); db.session.commit()
+
+    # assign public id
+    generate_public_id(i)
+    db.session.commit()
+
     flash("Inspection created.", "success")
     return redirect(url_for("inspection_detail", inspection_id=i.id))
 
@@ -380,9 +562,10 @@ def inspection_detail(inspection_id):
     i = Inspection.query.get_or_404(inspection_id)
     rep = Report.query.filter_by(inspection_id=inspection_id).first()
     inv = Invoice.query.filter_by(inspection_id=inspection_id).first()
-    return render_template("inspection_detail.html", i=i, rep=rep, inv=inv)
+    latest_file = ReportFile.query.filter_by(inspection_id=inspection_id).order_by(ReportFile.uploaded_at.desc()).first()
+    return render_template("inspection_detail.html", i=i, rep=rep, inv=inv, latest_file=latest_file)
 
-# UPDATED: engineer can also update CHA for their own inspection
+# engineer can also update CHA for their own inspection
 @app.route("/inspections/<int:inspection_id>/edit", methods=["GET","POST"])
 @role_required(Role.ADMIN, Role.ENGINEER)
 def inspection_edit(inspection_id):
@@ -395,6 +578,8 @@ def inspection_edit(inspection_id):
         i.client_id = int(request.form["client_id"])
         i.location = request.form.get("location","")
         i.asset = request.form.get("asset","")
+        i.forwarder_name = request.form.get("forwarder_name","").strip() or None
+        i.cha_commission_pct = (float(request.form.get("cha_commission_pct")) if request.form.get("cha_commission_pct") else None)
 
         # Allow both roles to update CHA (engineer only on their own inspection)
         if request.form.get("cha_id") is not None:
@@ -403,6 +588,34 @@ def inspection_edit(inspection_id):
         if session.get("role") == Role.ADMIN:
             i.status = request.form.get("status", i.status)
             i.engineer_id = int(request.form["engineer_id"]) if request.form.get("engineer_id") else i.engineer_id
+            i.inspection_type = request.form.get("inspection_type", i.inspection_type)
+
+        # type-specific updates
+        t = i.inspection_type
+        if t == InspectionType.PSIC:
+            i.scrap_type = request.form.get("scrap_type") or None
+            i.container_count = (int(request.form.get("container_count")) if request.form.get("container_count") else None)
+            i.container_weight = (float(request.form.get("container_weight")) if request.form.get("container_weight") else None)
+            i.container_notes = request.form.get("container_notes") or None
+
+        elif t == InspectionType.CE_VAL:
+            i.machinery_type = request.form.get("machinery_type") or None
+            i.year_of_manufacture = (int(request.form.get("year_of_manufacture")) if request.form.get("year_of_manufacture") else None)
+            i.original_cif_value = (float(request.form.get("original_cif_value")) if request.form.get("original_cif_value") else None)
+            dep_pct = compute_depreciation_pct(i.year_of_manufacture or 0, i.date)
+            i.depreciation_pct = dep_pct
+            if i.original_cif_value is not None:
+                i.residual_value = round(max(0.0, (i.original_cif_value or 0.0) * (1 - dep_pct/100.0)), 2)
+            i.balance_useful_life = request.form.get("balance_useful_life") or None
+
+        elif t == InspectionType.CE_FIT:
+            i.goods_details = request.form.get("goods_details") or None
+            i.condition_notes = request.form.get("condition_notes") or None
+            i.fair_market_value = (float(request.form.get("fair_market_value")) if request.form.get("fair_market_value") else None)
+
+        # ensure public id exists (e.g., if previously legacy entry)
+        if not i.public_id:
+            generate_public_id(i)
 
         db.session.commit()
         flash("Inspection updated.", "success")
@@ -413,7 +626,7 @@ def inspection_edit(inspection_id):
     engineers = User.query.filter(User.role == Role.ENGINEER).all()
     return render_template("inspection_edit.html", i=i, clients=clients, chas=chas, engineers=engineers)
 
-# NEW: admin delete inspection (cleans dependents)
+# admin delete inspection (cleans dependents)
 @app.route("/inspections/<int:inspection_id>/delete", methods=["POST"])
 @role_required(Role.ADMIN)
 def inspection_delete(inspection_id):
@@ -421,6 +634,14 @@ def inspection_delete(inspection_id):
     Report.query.filter_by(inspection_id=inspection_id).delete()
     Invoice.query.filter_by(inspection_id=inspection_id).delete()
     Commission.query.filter_by(inspection_id=inspection_id).delete()
+    # delete files
+    files = ReportFile.query.filter_by(inspection_id=inspection_id).all()
+    for f in files:
+        try:
+            (UPLOAD_ROOT / f.stored_name).unlink(missing_ok=True)
+        except Exception:
+            pass
+        db.session.delete(f)
     db.session.delete(i)
     db.session.commit()
     flash("Inspection deleted.", "info")
@@ -453,6 +674,33 @@ def report_edit(inspection_id):
     i = Inspection.query.get_or_404(inspection_id)
     rep = ensure_report(inspection_id)
     if request.method == "POST":
+        # File upload path
+        if "report_file" in request.files and request.files["report_file"].filename:
+            file = request.files["report_file"]
+            if not allowed_report_file(file.filename):
+                flash("Invalid file type. Allowed: PDF, DOC, DOCX.", "warning")
+                return redirect(url_for("report_edit", inspection_id=inspection_id))
+            safe = secure_filename(file.filename)
+            stored = f"{inspection_id}_{int(datetime.utcnow().timestamp())}_{safe}"
+            save_path = UPLOAD_ROOT / stored
+            file.save(save_path)
+            rf = ReportFile(
+                inspection_id=inspection_id,
+                uploader_id=session.get("user_id"),
+                stored_name=stored,
+                original_name=file.filename,
+                mimetype=file.mimetype
+            )
+            db.session.add(rf)
+            # auto status update
+            i.status = InspectionStatus.REPORT_UPLOADED
+            # mark report as final for clarity if body exists
+            rep.status = ReportStatus.FINAL
+            rep.updated_at = datetime.utcnow()
+            db.session.commit()
+            flash("Report uploaded.", "success")
+            return redirect(url_for("inspection_detail", inspection_id=inspection_id))
+
         action = request.form.get("action")
         body = request.form.get("body", "")
         if action == "ai":
@@ -467,14 +715,17 @@ def report_edit(inspection_id):
         rep.body = body
         if request.form.get("save_as") == "final":
             rep.status = ReportStatus.FINAL
-            i.status = InspectionStatus.REPORT_GENERATED
+            # keep workflow separate from external upload; don't force REPORT_UPLOADED
+            if i.status == InspectionStatus.UNDER_REVIEW:
+                i.status = InspectionStatus.COMPLETED
         else:
             rep.status = ReportStatus.DRAFT
         rep.updated_at = datetime.utcnow()
         db.session.commit()
         flash("Report saved.", "success")
         return redirect(url_for("inspection_detail", inspection_id=inspection_id))
-    return render_template("report_edit.html", i=i, rep=rep)
+    latest_file = ReportFile.query.filter_by(inspection_id=inspection_id).order_by(ReportFile.uploaded_at.desc()).first()
+    return render_template("report_edit.html", i=i, rep=rep, latest_file=latest_file)
 
 @app.route("/reports/<int:inspection_id>/view")
 @role_required(Role.ADMIN, Role.ENGINEER, Role.ACCOUNTANT)
@@ -482,6 +733,44 @@ def report_view(inspection_id):
     rep = Report.query.filter_by(inspection_id=inspection_id).first_or_404()
     i = Inspection.query.get_or_404(inspection_id)
     return render_template("report_view.html", i=i, rep=rep)
+
+@app.route("/reports/download/<int:file_id>")
+@role_required(Role.ADMIN, Role.ENGINEER, Role.ACCOUNTANT)
+def report_download(file_id):
+    f = ReportFile.query.get_or_404(file_id)
+    return send_from_directory(app.config["UPLOAD_FOLDER"], f.stored_name, as_attachment=True, download_name=f.original_name)
+
+# ===== Report Library (Admin only) =====
+@app.route("/report-library")
+@role_required(Role.ADMIN)
+def report_library():
+    q = request.args.get("q","").strip()
+    itype = request.args.get("type","").strip()
+    date_from = request.args.get("from")
+    date_to = request.args.get("to")
+
+    qry = db.session.query(ReportFile, Inspection, Client).join(Inspection, ReportFile.inspection_id == Inspection.id).join(Client, Inspection.client_id == Client.id)
+
+    if q:
+        like = f"%{q}%"
+        qry = qry.filter(or_(Inspection.public_id.ilike(like),
+                             Client.name.ilike(like)))
+    if itype:
+        qry = qry.filter(Inspection.inspection_type == itype)
+    if date_from:
+        df = datetime.fromisoformat(date_from)
+        qry = qry.filter(Inspection.date >= df)
+    if date_to:
+        dt = datetime.fromisoformat(date_to)
+        if len(date_to) == 10:
+            dt = dt + timedelta(days=1)
+            qry = qry.filter(Inspection.date < dt)
+        else:
+            qry = qry.filter(Inspection.date <= dt)
+
+    rows = qry.order_by(ReportFile.uploaded_at.desc()).all()
+    # We'll render to 'report_library.html'
+    return render_template("report_library.html", rows=rows, InspectionType=InspectionType, q=q, type=itype)
 
 # ===== Invoices =====
 @app.route("/invoices/<int:inspection_id>", methods=["GET","POST"])
@@ -498,6 +787,8 @@ def invoice_edit(inspection_id):
         if inv.status in [InvoiceStatus.SENT, InvoiceStatus.PAID]:
             i.status = InspectionStatus.INVOICED
         db.session.commit()
+        # recalc commission automatically if override / CHA rate present
+        upsert_commission_from_inspection(i)
         flash("Invoice updated.", "success")
         return redirect(url_for("inspection_detail", inspection_id=inspection_id))
     return render_template("invoice_edit.html", i=i, inv=inv)
@@ -520,24 +811,14 @@ def cha_tracker():
     )
     return render_template("cha.html", rows=rows, summary=summary)
 
-# UPDATED: only recalc on explicit request; otherwise preserve manual amount
+# generate / recalc from invoice × rate (respect override if present)
 @app.route("/commissions/generate/<int:inspection_id>", methods=["POST"])
 @role_required(Role.ADMIN, Role.ACCOUNTANT)
 def commission_generate(inspection_id):
     i = Inspection.query.get_or_404(inspection_id)
-    if not i.cha:
-        flash("No CHA linked.", "warning"); return redirect(url_for("inspection_detail", inspection_id=inspection_id))
-    rate = i.cha.commission_rate or 0.0
-    fee = i.invoice.fee if i.invoice else 0.0
-    amount = round(fee * rate / 100.0, 2)
-    com = Commission.query.filter_by(inspection_id=inspection_id).first()
-    if not com:
-        com = Commission(inspection_id=inspection_id, cha_id=i.cha.id, amount=amount, status=CommissionStatus.DUE)
-        db.session.add(com)
-    else:
-        if request.form.get("recalc") == "1":
-            com.amount = amount
-    db.session.commit()
+    if not i.cha and i.cha_commission_pct is None:
+        flash("No CHA or commission % provided.", "warning"); return redirect(url_for("inspection_detail", inspection_id=inspection_id))
+    upsert_commission_from_inspection(i)
     flash("Commission calculated.", "success")
     return redirect(url_for("inspection_detail", inspection_id=inspection_id))
 
@@ -550,7 +831,7 @@ def commission_mark(commission_id):
     flash("Commission updated.", "success")
     return redirect(url_for("cha_tracker"))
 
-# NEW: inline amount update (Admin/Accountant)
+# inline amount update
 @app.route("/commissions/<int:commission_id>/update", methods=["POST"])
 @role_required(Role.ADMIN, Role.ACCOUNTANT)
 def commission_update(commission_id):
@@ -595,7 +876,7 @@ def notifications():
         Inspection.date < datetime.utcnow() - timedelta(days=3)
     ).all()
     missing_invoice = Inspection.query.filter(
-        Inspection.status.in_([InspectionStatus.COMPLETED, InspectionStatus.REPORT_GENERATED])
+        Inspection.status.in_([InspectionStatus.COMPLETED, InspectionStatus.REPORT_UPLOADED])
     ).filter(~Inspection.id.in_(db.session.query(Invoice.inspection_id))).all()
     commission_due = Commission.query.filter(Commission.status == CommissionStatus.DUE).all()
     return render_template("notifications.html",
@@ -603,8 +884,49 @@ def notifications():
                            missing_invoice=missing_invoice,
                            commission_due=commission_due)
 
+# ===== Lightweight auto-migration for SQLite (adds new columns if missing) =====
+def _ensure_sqlite_columns():
+    import sqlite3
+    engine = db.get_engine()
+    if "sqlite" not in str(engine.url):
+        return
+    con = engine.raw_connection()
+    cur = con.cursor()
+    def table_cols(table):
+        cur.execute(f"PRAGMA table_info({table})")
+        return {row[1] for row in cur.fetchall()}
+
+    # inspection new columns
+    want = {
+        ("inspection","public_id","TEXT"),
+        ("inspection","seq_num","INTEGER"),
+        ("inspection","inspection_type","TEXT"),
+        ("inspection","forwarder_name","TEXT"),
+        ("inspection","cha_commission_pct","REAL"),
+        ("inspection","scrap_type","TEXT"),
+        ("inspection","container_count","INTEGER"),
+        ("inspection","container_weight","REAL"),
+        ("inspection","container_notes","TEXT"),
+        ("inspection","machinery_type","TEXT"),
+        ("inspection","year_of_manufacture","INTEGER"),
+        ("inspection","original_cif_value","REAL"),
+        ("inspection","depreciation_pct","REAL"),
+        ("inspection","residual_value","REAL"),
+        ("inspection","balance_useful_life","TEXT"),
+        ("inspection","goods_details","TEXT"),
+        ("inspection","condition_notes","TEXT"),
+        ("inspection","fair_market_value","REAL"),
+    }
+    cols = table_cols("inspection")
+    for tbl, col, typ in want:
+        if col not in cols:
+            cur.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {typ}")
+    con.commit()
+    cur.close(); con.close()
+
 # ===== Boot =====
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
+        _ensure_sqlite_columns()
     app.run(debug=True)
