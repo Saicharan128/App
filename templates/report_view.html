@@ -2,6 +2,6 @@
 {% block title %}Report · #{{ i.id }}{% endblock %}
 {% block content %}
 <div class="bg-white rounded-lg shadow p-6 prose max-w-none">
-    {{ rep.body|safe if rep.body else '<p class="text-slate-500">No content.</p>' }}
+    {{ rendered_body|safe if rendered_body else '<p class="text-slate-500">No content.</p>' }}
 </div>
 {% endblock %}

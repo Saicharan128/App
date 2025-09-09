@@ -202,6 +202,25 @@ class Template(db.Model):
     ai_prompt = db.Column(db.Text)
     html_snippet = db.Column(db.Text)
 
+class Annexure(db.Model):
+    __tablename__ = "annexure"
+    id = db.Column(db.Integer, primary_key=True)
+    inspection_id = db.Column(db.Integer, db.ForeignKey("inspection.id"))
+    inspection = db.relationship("Inspection", backref=db.backref("annexures", lazy="dynamic"))
+
+    sno = db.Column(db.Integer)
+    description = db.Column(db.Text)
+    qty = db.Column(db.Integer)
+    manufacturer = db.Column(db.String(200))
+    markings = db.Column(db.String(200))
+    yom = db.Column(db.Integer)
+    unit_invoice_value = db.Column(db.Float)
+    total_invoice_value = db.Column(db.Float)
+    unit_fob_price = db.Column(db.Float)
+    unit_present_assessed_value = db.Column(db.Float)
+    total_present_assessed_value = db.Column(db.Float)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 # ===== Helpers =====
 def role_required(*roles):
     def deco(fn):
@@ -503,6 +522,7 @@ def global_search():
 
 # ===== Inspections =====
 # allow ADMIN and ENGINEER to create; default engineer to self for ENGINEER
+# allow ADMIN and ENGINEER to create; default engineer to self for ENGINEER
 @app.route("/inspections/new", methods=["POST"])
 @role_required(Role.ADMIN, Role.ENGINEER)
 def inspection_create():
@@ -523,7 +543,7 @@ def inspection_create():
         cha_commission_pct=(float(request.form.get("cha_commission_pct")) if request.form.get("cha_commission_pct") else None),
     )
 
-    # type-specific
+    # type-specific fields
     t = i.inspection_type
     if t == InspectionType.PSIC:
         i.scrap_type = request.form.get("scrap_type") or None
@@ -547,11 +567,40 @@ def inspection_create():
         i.condition_notes = request.form.get("condition_notes") or None
         i.fair_market_value = (float(request.form.get("fair_market_value")) if request.form.get("fair_market_value") else None)
 
-    db.session.add(i); db.session.commit()
+    db.session.add(i)
+    db.session.commit()
 
     # assign public id
     generate_public_id(i)
     db.session.commit()
+
+    # ===== Annexure handling (for CE inspections only) =====
+    if i.inspection_type in [InspectionType.CE_VAL, InspectionType.CE_FIT]:
+        annexure_snos = request.form.getlist("annexure_sno[]")
+        annexure_descs = request.form.getlist("annexure_description[]")
+        annexure_qtys = request.form.getlist("annexure_qty[]")
+        annexure_mfrs = request.form.getlist("annexure_manufacturer[]")
+        annexure_marks = request.form.getlist("annexure_markings[]")
+        annexure_yoms = request.form.getlist("annexure_yom[]")
+        annexure_unit_vals = request.form.getlist("annexure_unit_invoice_value[]")
+        annexure_total_vals = request.form.getlist("annexure_total_invoice_value[]")
+
+        for idx in range(len(annexure_descs)):
+            if annexure_descs[idx].strip():  # only save if description is filled
+                a = Annexure(
+                    inspection_id=i.id,
+                    sno=(int(annexure_snos[idx]) if annexure_snos[idx] else None),
+                    description=annexure_descs[idx],
+                    qty=(int(annexure_qtys[idx]) if annexure_qtys[idx] else None),
+                    manufacturer=annexure_mfrs[idx] if idx < len(annexure_mfrs) else None,
+                    markings=annexure_marks[idx] if idx < len(annexure_marks) else None,
+                    yom=(int(annexure_yoms[idx]) if idx < len(annexure_yoms) and annexure_yoms[idx] else None),
+                    unit_invoice_value=(float(annexure_unit_vals[idx]) if idx < len(annexure_unit_vals) and annexure_unit_vals[idx] else None),
+                    total_invoice_value=(float(annexure_total_vals[idx]) if idx < len(annexure_total_vals) and annexure_total_vals[idx] else None),
+                )
+                db.session.add(a)
+        db.session.commit()
+    # ===== End Annexure handling =====
 
     flash("Inspection created.", "success")
     return redirect(url_for("inspection_detail", inspection_id=i.id))
@@ -727,12 +776,37 @@ def report_edit(inspection_id):
     latest_file = ReportFile.query.filter_by(inspection_id=inspection_id).order_by(ReportFile.uploaded_at.desc()).first()
     return render_template("report_edit.html", i=i, rep=rep, latest_file=latest_file)
 
-@app.route("/reports/<int:inspection_id>/view")
+from flask import render_template_string
+
+@app.route("/inspections/<int:inspection_id>/report/view")
 @role_required(Role.ADMIN, Role.ENGINEER, Role.ACCOUNTANT)
 def report_view(inspection_id):
-    rep = Report.query.filter_by(inspection_id=inspection_id).first_or_404()
     i = Inspection.query.get_or_404(inspection_id)
-    return render_template("report_view.html", i=i, rep=rep)
+    rep = Report.query.filter_by(inspection_id=inspection_id).first()
+
+    if not rep or not rep.body:
+        return render_template("report_view.html", i=i, rep=rep)
+
+    # Render template placeholders with inspection values
+    rendered_body = render_template_string(rep.body, i=i)
+
+    return render_template("report_view.html", i=i, rep=rep, rendered_body=rendered_body)
+
+@app.route("/inspections/<int:inspection_id>/report/export")
+@role_required(Role.ADMIN, Role.ENGINEER, Role.ACCOUNTANT)
+def report_export(inspection_id):
+    i = Inspection.query.get_or_404(inspection_id)
+
+    # Choose template based on inspection type
+    if i.inspection_type == InspectionType.PSIC:
+        template_name = "psic_certificate.html"
+    elif i.inspection_type in [InspectionType.CE_VAL, InspectionType.CE_FIT]:
+        template_name = "ce_certificate.html"
+    else:
+        flash("No dynamic report template available for this inspection type.", "warning")
+        return redirect(url_for("inspection_detail", inspection_id=inspection_id))
+
+    return render_template(template_name, i=i)
 
 @app.route("/reports/download/<int:file_id>")
 @role_required(Role.ADMIN, Role.ENGINEER, Role.ACCOUNTANT)
@@ -923,6 +997,41 @@ def _ensure_sqlite_columns():
             cur.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {typ}")
     con.commit()
     cur.close(); con.close()
+
+@app.route("/inspections/<int:inspection_id>/annexures/add", methods=["POST"])
+@role_required(Role.ADMIN, Role.ENGINEER)
+def annexure_add(inspection_id):
+    i = Inspection.query.get_or_404(inspection_id)
+
+    a = Annexure(
+        inspection_id=inspection_id,
+        sno=(int(request.form.get("sno")) if request.form.get("sno") else None),
+        description=request.form.get("description") or None,
+        qty=(int(request.form.get("qty")) if request.form.get("qty") else None),
+        manufacturer=request.form.get("manufacturer") or None,
+        markings=request.form.get("markings") or None,
+        yom=(int(request.form.get("yom")) if request.form.get("yom") else None),
+        unit_invoice_value=(float(request.form.get("unit_invoice_value")) if request.form.get("unit_invoice_value") else None),
+        total_invoice_value=(float(request.form.get("total_invoice_value")) if request.form.get("total_invoice_value") else None),
+        unit_fob_price=(float(request.form.get("unit_fob_price")) if request.form.get("unit_fob_price") else None),
+        unit_present_assessed_value=(float(request.form.get("unit_present_assessed_value")) if request.form.get("unit_present_assessed_value") else None),
+        total_present_assessed_value=(float(request.form.get("total_present_assessed_value")) if request.form.get("total_present_assessed_value") else None),
+    )
+
+    db.session.add(a)
+    db.session.commit()
+    flash("Annexure row added.", "success")
+    return redirect(url_for("inspection_detail", inspection_id=inspection_id))
+
+
+@app.route("/annexure/<int:annexure_id>/delete", methods=["POST"])
+@role_required(Role.ADMIN, Role.ENGINEER)
+def annexure_delete(annexure_id):
+    a = Annexure.query.get_or_404(annexure_id)
+    inspection_id = a.inspection_id
+    db.session.delete(a); db.session.commit()
+    flash("Annexure row deleted.", "info")
+    return redirect(url_for("inspection_detail", inspection_id=inspection_id))
 
 # ===== Boot =====
 if __name__ == "__main__":

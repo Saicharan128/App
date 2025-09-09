@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Waste Paper Certificate Template</title>
+  <style>
+    /* keep original styling */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      color: #222;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 4px solid #0a3d75;
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+    }
+
+    .header .logo {
+      width: 90px;
+      height: 90px;
+    }
+
+    .header .title {
+      flex-grow: 1;
+      text-align: center;
+      line-height: 1.2;
+    }
+
+    .header .title .brand {
+      font-size: 32px;
+      font-weight: bold;
+    }
+
+    .header .title .brand span:first-child {
+      color: #02437a;
+    }
+
+    .header .title .brand span:last-child {
+      color: #666;
+    }
+
+    .header .title .report-name {
+      font-size: 14px;
+      font-weight: bold;
+      margin-top: 4px;
+    }
+
+    .header .title .report-subtitle {
+      font-size: 10px;
+      color: #555;
+      margin-top: 2px;
+    }
+
+    .header .contact {
+      text-align: right;
+      font-size: 10px;
+      line-height: 1.2;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+
+    th,
+    td {
+      border: 1px solid #333;
+      padding: 4px 6px;
+      vertical-align: top;
+    }
+
+    th {
+      background-color: #f0f5fa;
+      font-weight: bold;
+    }
+
+    .no-border {
+      border: none;
+    }
+
+    .section-title {
+      font-weight: bold;
+      margin: 16px 0 6px;
+      font-size: 14px;
+    }
+
+    ol.custom {
+      margin: 0 0 0 20px;
+      padding: 0;
+      font-size: 12px;
+    }
+
+    .footer {
+      font-size: 9px;
+      margin-top: 20px;
+      line-height: 1.2;
+      border-top: 1px solid #999;
+      padding-top: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="header">
+    <img class="logo" src="data:image/png;base64,...keep your logo..." alt="TSK seal logo">
+    <div class="title">
+      <div class="brand"><span>TSK</span><span>ENGINEERS INC</span></div>
+      <div class="report-name">CERTIFICATE OF CHEMICAL ANALYSIS REPORT</div>
+      <div class="report-subtitle">PRE-SHIPMENT INSPECTION AGENCY (PSIA) PN 02/2015-20 DGFT</div>
+    </div>
+    <div class="contact">
+      <div>+91 99405 33724 INDIA</div>
+      <div>psic@tskengineers.com</div>
+    </div>
+  </div>
+
+  <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:10px;">
+    <div>
+      <div><strong>Reference No:</strong> {{ i.public_id or ('#' ~ i.id) }}</div>
+      <div><strong>Date of Issue:</strong> {{ i.date.strftime('%Y-%m-%d') if i.date else '—' }}</div>
+    </div>
+    <div>Page 1 of 1</div>
+  </div>
+
+  <table>
+    <tr>
+      <th colspan="2">I. Details of Exporter</th>
+      <th colspan="2">II. Details of Importer</th>
+    </tr>
+    <tr>
+      <td><strong>Name</strong></td>
+      <td>{{ i.forwarder_name or '—' }}</td>
+      <td><strong>Name</strong></td>
+      <td>{{ i.client.name if i.client else '—' }}</td>
+    </tr>
+    <tr>
+      <td><strong>CHA</strong></td>
+      <td>{{ i.cha.name if i.cha else '—' }}</td>
+      <td><strong>Address</strong></td>
+      <td>{{ i.location or '—' }}</td>
+    </tr>
+  </table>
+
+  <table>
+    <tr>
+      <th colspan="3">III. Details of Imports</th>
+    </tr>
+    <tr>
+      <th>Description of the Waste Paper Grade</th>
+      <th>No of Bales</th>
+      <th>Consignment Quantity in MT</th>
+    </tr>
+    <tr>
+      <td>{{ i.scrap_type or '—' }}</td>
+      <td>{{ i.container_count or '—' }}</td>
+      <td>{{ i.container_weight or '—' }}</td>
+    </tr>
+  </table>
+
+  <ol class="custom" type="I" start="4">
+    <li>The consignment is actually waste paper as per the internationally acceptable parameters for such material.</li>
+    <li>There is no putrefiable organic matter in the consignment.</li>
+    <li>The approximate content of non-recyclable material is not more than <strong>5 %</strong> and the balance is all
+      fibre.</li>
+    <li>No municipal solid waste or medical waste or hazardous waste is part of the consignment.</li>
+    <li>The wastepaper has originated from a single stream source.</li>
+    <li>The random bale break analysis is as follows: found within acceptable parameters for such material.</li>
+  </ol>
+
+  <p style="font-size:12px; margin-top:10px;">I/We hereby declare that the particulars and statements made in this
+    certificate are true and correct and nothing has been concealed or held therefrom.</p>
+
+  <p style="font-size:12px;">This certificate issued by TSK Engineers Pvt Ltd, an accredited agency approved by DGFT
+    India, can only be used for the sole purpose of certifying the conformity of the commodity being inspected for
+    wastepaper. Other aspects … [keep full disclaimer text exactly as original] …</p>
+
+  <table style="width:100%; margin-top:20px; font-size:12px;">
+    <tr>
+      <td class="no-border" style="width:50%;"><strong>Seal of PSIC</strong></td>
+      <td class="no-border" style="width:50%;"><strong>Designation:</strong> Inspector</td>
+    </tr>
+  </table>
+
+  <div class="footer">
+    11344 Coloma Road, Suite #112, Gold River, CA 95670, USA<br>
+    89, Short Street, #10-08, Golden Wall Centre-188216, Singapore<br>
+    D.No. 602, NMSEZ Commercial Complex, Sector-III, Dronagiri, Nhava-Sheva, Navi Mumbai 400707 – India<br>
+    No. 12, 4th Main Road, V.G.P. Layout Part 3, Palavakkam, Chennai 600041 – India<br>
+    <em>This paper is meant for Customs purpose only</em>
+  </div>
+</body>
+
+</html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Chartered Engineer Certificate</title>
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      margin: 32px;
+      color: #222;
+    }
+
+    .page {
+      margin-bottom: 40px;
+      page-break-after: always;
+    }
+
+    h1 {
+      font-size: 24px;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      font-size: 14px;
+      text-align: center;
+      font-weight: normal;
+      color: #444;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-weight: bold;
+      margin-top: 18px;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-bottom: 16px;
+    }
+
+    th,
+    td {
+      border: 1px solid #333;
+      padding: 6px 8px;
+      vertical-align: top;
+    }
+
+    th {
+      background-color: #f0f5fa;
+      font-weight: bold;
+    }
+
+    ol.roman {
+      margin: 0 0 0 20px;
+      padding: 0;
+      font-size: 12px;
+    }
+
+    ol.roman li {
+      margin-bottom: 6px;
+    }
+
+    .annexure-wrapper {
+      display: block;
+    }
+
+    .annexure-item {
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 8px 12px;
+      width: 100%;
+      margin-bottom: 12px;
+    }
+
+    .annexure-item h3 {
+      margin: 0 0 6px 0;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .annexure-mini-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    .annexure-mini-table th,
+    .annexure-mini-table td {
+      border: 1px solid #333;
+      padding: 4px 6px;
+    }
+
+    .annexure-mini-table th {
+      background-color: #f0f5fa;
+      width: 45%;
+    }
+
+    .note {
+      font-size: 11px;
+      margin-top: 8px;
+      text-align: justify;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Page 1 -->
+  <div class="page">
+    <h1>Chartered Engineer's Certificate</h1>
+    <h2>Empanelled as Local Panel Chartered Engineer by respective Customs House.<br>
+      Report issued in the Form B as referred in para 6(d) of the Circular No 07/2020 dated 05 Feb 2020.</h2>
+    <div class="info-row">
+      <div><strong>Reference No:</strong> {{ i.public_id or ('#' ~ i.id) }}</div>
+      <div>{{ i.date.strftime('%Y-%m-%d') if i.date else '—' }} Page 1</div>
+    </div>
+    <p style="font-size:12px; text-align: justify;">I, <strong>{{ i.engineer.name if i.engineer else '—' }}</strong>,
+      hereby certify that I have carried out an inspection of the used goods covered under Invoice No: <strong>{{
+        i.original_cif_value or '—' }}</strong> issued by <strong>{{ i.client.name if i.client else '—' }}</strong>.</p>
+    <ol class="roman" type="i">
+      <li><strong>Place of inspection:</strong> {{ i.location or '—' }}</li>
+      <li><strong>Date of inspection:</strong> {{ i.date.strftime('%Y-%m-%d') if i.date else '—' }}</li>
+      <li><strong>Name of the inspector:</strong> {{ i.engineer.name if i.engineer else '—' }}</li>
+    </ol>
+    <div class="section-title">1. Details of the Importer</div>
+    <table>
+      <tr>
+        <th>Importer Name</th>
+        <td>{{ i.client.name if i.client else '—' }}</td>
+      </tr>
+      <tr>
+        <th>Importer Address</th>
+        <td>{{ i.location or '—' }}</td>
+      </tr>
+      <tr>
+        <th>Importer Exporter Code No</th>
+        <td>{{ i.client.gst_number or '—' }}</td>
+      </tr>
+      <tr>
+        <th>Bill of Entry Number</th>
+        <td>{{ i.bill_of_entry_no or '—' }}</td>
+      </tr>
+      <tr>
+        <th>Bill of Entry Date</th>
+        <td>{{ i.bill_of_entry_date or '—' }}</td>
+      </tr>
+    </table>
+    <div class="section-title">2. Details of the goods</div>
+    <ol class="roman" type="i" start="1">
+      <li><strong>Name of the manufacturer:</strong> As in ANNEXURE</li>
+      <li><strong>Year of manufacture:</strong> As in ANNEXURE</li>
+      <li><strong>Serial No / ID No:</strong> As in ANNEXURE</li>
+      <li><strong>Description of the machine:</strong> As in ANNEXURE</li>
+      <li><strong>Original invoice available?</strong> NOT available</li>
+      <li><strong>If yes, value, currency and date:</strong> NOT available</li>
+      <li><strong>If no, estimated sale price:</strong> As in ANNEXURE</li>
+      <li><strong>Present condition & expected life span:</strong> Very good – exceptional good mechanical condition …
+      </li>
+      <li><strong>Reconditioning done?</strong> NO</li>
+      <li><strong>If yes, by whom:</strong> Not applicable</li>
+    </ol>
+    <p style="font-size:12px; text-align: justify; margin-top:10px;">This report is meant for Customs clearance purpose
+      only … (keep all disclaimer text as in source file)</p>
+  </div>
+
+  <!-- Page 2 -->
+  <div class="page">
+    <div class="info-row">
+      <div><strong>Reference No:</strong> {{ i.public_id or ('#' ~ i.id) }}</div>
+      <div>{{ i.date.strftime('%Y-%m-%d') if i.date else '—' }} Page 2</div>
+    </div>
+    <ol class="roman" type="i" start="11">
+      <li><strong>Are there invoices to indicate cost?</strong> NO</li>
+      <li><strong>If no, estimated cost:</strong> Not applicable</li>
+      <li><strong>Repairs / refurbishment observed:</strong> NO</li>
+      <li><strong>Charges for dismantling, packing, transport?</strong> NO</li>
+      <li><strong>Catalogues available?</strong> NOT available</li>
+      <li><strong>Reference materials used:</strong> Based on import documents & physical inspection.</li>
+      <li><strong>Comments on Valuation:</strong> As per annexure.</li>
+    </ol>
+    <div class="section-title">3. Remarks</div>
+    <p style="font-size:12px;">This report is meant for Customs clearance purpose only … (keep full remarks and
+      disclaimers as in source file)</p>
+    <p style="font-size:12px; line-height:1.4;">
+      <strong>Name of the Inspector:</strong> {{ i.engineer.name if i.engineer else '—' }}<br>
+      <strong>Designation:</strong> Chartered Engineer<br>
+      <strong>Address:</strong> No. 2/4 Main Road, VGP Layout Part-3, Chennai – 600041<br>
+      <strong>Email:</strong> tskengineers.che@gmail.com<br>
+      <strong>Mobile:</strong> +91 7446 48388
+    </p>
+  </div>
+
+  <!-- Page 3: Annexure -->
+  <div class="page">
+    <div class="info-row">
+      <div><strong>Reference No:</strong> {{ i.public_id or ('#' ~ i.id) }}</div>
+      <div>ANNEXURE</div>
+      <div>Page 3</div>
+    </div>
+    <div class="annexure-wrapper">
+      {% for a in i.annexures %}
+      <div class="annexure-item">
+        <h3>Item {{ loop.index }}</h3>
+        <table class="annexure-mini-table">
+          <tr>
+            <th>Description</th>
+            <td>{{ a.description }}</td>
+          </tr>
+          <tr>
+            <th>Qty</th>
+            <td>{{ a.qty }}</td>
+          </tr>
+          <tr>
+            <th>Manufacturer</th>
+            <td>{{ a.manufacturer }}</td>
+          </tr>
+          <tr>
+            <th>Markings</th>
+            <td>{{ a.markings }}</td>
+          </tr>
+          <tr>
+            <th>YOM</th>
+            <td>{{ a.yom }}</td>
+          </tr>
+          <tr>
+            <th>Unit Invoice Value*</th>
+            <td>{{ a.unit_invoice_value }}</td>
+          </tr>
+          <tr>
+            <th>Total Invoice Value*</th>
+            <td>{{ a.total_invoice_value }}</td>
+          </tr>
+          <tr>
+            <th>Unit FOB Price</th>
+            <td>{{ a.unit_fob_price }}</td>
+          </tr>
+          <tr>
+            <th>Unit Present Assessed Value*</th>
+            <td>{{ a.unit_present_assessed_value }}</td>
+          </tr>
+          <tr>
+            <th>Total Present Assessed Value*</th>
+            <td>{{ a.total_present_assessed_value }}</td>
+          </tr>
+        </table>
+      </div>
+      {% else %}
+      <p>No annexure rows available.</p>
+      {% endfor %}
+    </div>
+  </div>
+</body>
+
+</html>

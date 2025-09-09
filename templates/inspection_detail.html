@@ -31,8 +31,9 @@
                 <span class="px-2 py-0.5 rounded bg-slate-100 border">
                     {{ InspectionType.CODE_TO_LABEL.get(i.inspection_type, i.inspection_type) }}
                 </span>
-                {% if i.seq_num %}<span class="px-2 py-0.5 rounded bg-slate-100 border">Seq: {{ i.seq_num }}</span>{%
-                endif %}
+                {% if i.seq_num %}
+                <span class="px-2 py-0.5 rounded bg-slate-100 border">Seq: {{ i.seq_num }}</span>
+                {% endif %}
             </div>
 
             <div class="mt-4 grid md:grid-cols-2 gap-3 text-sm">
@@ -141,6 +142,74 @@
             {% endif %}
         </div>
 
+        <!-- Annexure Table (for CE only) -->
+        {% if i.inspection_type in ['CE_VAL', 'CE_FIT'] %}
+        <div class="bg-white rounded-lg shadow p-5">
+            <h2 class="font-semibold mb-3">Annexure</h2>
+            <table class="w-full text-sm border">
+                <thead class="bg-slate-100">
+                    <tr>
+                        <th class="p-2">S.No</th>
+                        <th class="p-2">Description</th>
+                        <th class="p-2">Qty</th>
+                        <th class="p-2">Manufacturer</th>
+                        <th class="p-2">Markings</th>
+                        <th class="p-2">YOM</th>
+                        <th class="p-2">Unit Invoice Value</th>
+                        <th class="p-2">Total Invoice Value</th>
+                        {% if session.get('role') in [Role.ADMIN, Role.ENGINEER] %}
+                        <th class="p-2">Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in i.annexures %}
+                    <tr class="border-t">
+                        <td class="p-2">{{ a.sno }}</td>
+                        <td class="p-2">{{ a.description }}</td>
+                        <td class="p-2">{{ a.qty }}</td>
+                        <td class="p-2">{{ a.manufacturer }}</td>
+                        <td class="p-2">{{ a.markings }}</td>
+                        <td class="p-2">{{ a.yom }}</td>
+                        <td class="p-2">{{ a.unit_invoice_value }}</td>
+                        <td class="p-2">{{ a.total_invoice_value }}</td>
+                        {% if session.get('role') in [Role.ADMIN, Role.ENGINEER] %}
+                        <td class="p-2">
+                            <form method="post" action="{{ url_for('annexure_delete', annexure_id=a.id) }}">
+                                <button class="text-rose-700 underline">Delete</button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="p-2 text-slate-500">No annexure rows yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            {% if session.get('role') in [Role.ADMIN, Role.ENGINEER] %}
+            <form method="post" action="{{ url_for('annexure_add', inspection_id=i.id) }}"
+                class="grid grid-cols-4 gap-2 mt-4 text-sm">
+                <input name="sno" placeholder="S.No" type="number" class="border rounded px-2 py-1">
+                <input name="description" placeholder="Description" class="border rounded px-2 py-1 col-span-2">
+                <input name="qty" placeholder="Qty" type="number" class="border rounded px-2 py-1">
+                <input name="manufacturer" placeholder="Manufacturer" class="border rounded px-2 py-1">
+                <input name="markings" placeholder="Markings" class="border rounded px-2 py-1">
+                <input name="yom" placeholder="YOM" type="number" class="border rounded px-2 py-1">
+                <input name="unit_invoice_value" placeholder="Unit Invoice" type="number" step="0.01"
+                    class="border rounded px-2 py-1">
+                <input name="total_invoice_value" placeholder="Total Invoice" type="number" step="0.01"
+                    class="border rounded px-2 py-1">
+                <div class="col-span-4">
+                    <button class="bg-slate-900 text-white rounded px-3 py-1">Add Annexure Row</button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+        {% endif %}
+
         <!-- Report -->
         <div class="bg-white rounded-lg shadow p-5">
             <div class="flex items-center justify-between">
@@ -157,6 +226,7 @@
                 {% if rep %}
                 <a class="rounded px-3 py-1.5 border" href="{{ url_for('report_view', inspection_id=i.id) }}">View</a>
                 {% endif %}
+                <a class="rounded px-3 py-1.5 border" href="{{ url_for('report_export', inspection_id=i.id) }}">Dynamic Report</a>
             </div>
 
             {% if latest_file %}

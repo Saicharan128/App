@@ -158,7 +158,7 @@
             </div>
         </div>
 
-        <!-- CE – Valuation & Depreciation fields -->
+        <!-- CE – Valuation fields -->
         <div class="md:col-span-6 type-block" data-type="CE_VAL" hidden>
             <div class="grid md:grid-cols-4 gap-3">
                 <div class="md:col-span-2">
@@ -180,13 +180,28 @@
                     <input name="balance_useful_life" class="w-full border rounded px-2 py-1.5"
                         placeholder="e.g., 3 years">
                 </div>
-                <div class="md:col-span-2 text-xs text-slate-500 flex items-end">
-                    Depreciation % and Residual Value are auto-calculated on save.
+            </div>
+
+            <!-- Annexure rows (inline add for CE_VAL) -->
+            <div class="mt-4">
+                <h3 class="font-semibold mb-2">Annexure (optional)</h3>
+                <div class="grid md:grid-cols-4 gap-2">
+                    <input name="annexure_sno[]" type="number" placeholder="S.No" class="border rounded px-2 py-1.5">
+                    <input name="annexure_description[]" placeholder="Description"
+                        class="border rounded px-2 py-1.5 col-span-2">
+                    <input name="annexure_qty[]" type="number" placeholder="Qty" class="border rounded px-2 py-1.5">
+                    <input name="annexure_manufacturer[]" placeholder="Manufacturer" class="border rounded px-2 py-1.5">
+                    <input name="annexure_markings[]" placeholder="Markings" class="border rounded px-2 py-1.5">
+                    <input name="annexure_yom[]" type="number" placeholder="YOM" class="border rounded px-2 py-1.5">
+                    <input name="annexure_unit_invoice_value[]" type="number" step="0.01" placeholder="Unit Invoice"
+                        class="border rounded px-2 py-1.5">
+                    <input name="annexure_total_invoice_value[]" type="number" step="0.01" placeholder="Total Invoice"
+                        class="border rounded px-2 py-1.5">
                 </div>
             </div>
         </div>
 
-        <!-- CE – Fitness / Condition fields -->
+        <!-- CE – Fitness fields -->
         <div class="md:col-span-6 type-block" data-type="CE_FIT" hidden>
             <div class="grid md:grid-cols-3 gap-3">
                 <div class="md:col-span-3">
@@ -201,6 +216,24 @@
                     <label class="text-xs">Fair Market Value</label>
                     <input name="fair_market_value" type="number" step="0.01" min="0"
                         class="w-full border rounded px-2 py-1.5">
+                </div>
+            </div>
+
+            <!-- Annexure rows (inline add for CE_FIT) -->
+            <div class="mt-4">
+                <h3 class="font-semibold mb-2">Annexure (optional)</h3>
+                <div class="grid md:grid-cols-4 gap-2">
+                    <input name="annexure_sno[]" type="number" placeholder="S.No" class="border rounded px-2 py-1.5">
+                    <input name="annexure_description[]" placeholder="Description"
+                        class="border rounded px-2 py-1.5 col-span-2">
+                    <input name="annexure_qty[]" type="number" placeholder="Qty" class="border rounded px-2 py-1.5">
+                    <input name="annexure_manufacturer[]" placeholder="Manufacturer" class="border rounded px-2 py-1.5">
+                    <input name="annexure_markings[]" placeholder="Markings" class="border rounded px-2 py-1.5">
+                    <input name="annexure_yom[]" type="number" placeholder="YOM" class="border rounded px-2 py-1.5">
+                    <input name="annexure_unit_invoice_value[]" type="number" step="0.01" placeholder="Unit Invoice"
+                        class="border rounded px-2 py-1.5">
+                    <input name="annexure_total_invoice_value[]" type="number" step="0.01" placeholder="Total Invoice"
+                        class="border rounded px-2 py-1.5">
                 </div>
             </div>
         </div>
