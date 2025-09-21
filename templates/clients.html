@@ -20,21 +20,34 @@
                 <tr>
                     <th class="p-3 text-left">Name</th>
                     <th class="p-3">GST</th>
+                    <th class="p-3">Billing Address</th>
                     <th class="p-3">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for c in data %}
-                <tr class="border-t">
-                    <td class="p-3">{{ c.name }}</td>
-                    <td class="p-3">{{ c.gst_number }}</td>
-                    <td class="p-3">
-                        <form method="post" action="{{ url_for('clients_delete', cid=c.id) }}"
-                            onsubmit="return confirm('Delete client?')">
-                            <button class="text-rose-700 underline">Delete</button>
-                        </form>
+                <tr class="border-t align-top">
+                    <form method="post" action="{{ url_for('clients_update', cid=c.id) }}" class="contents">
+                        <td class="p-3">
+                            <input name="name" value="{{ c.name }}" required class="border rounded px-2 py-1 w-full">
+                        </td>
+                        <td class="p-3">
+                            <input name="gst_number" value="{{ c.gst_number or '' }}" class="border rounded px-2 py-1 w-full">
+                        </td>
+                        <td class="p-3">
+                            <textarea name="billing_address" rows="2" class="border rounded px-2 py-1 w-full"
+                                placeholder="Billing address…">{{ c.billing_address or '' }}</textarea>
+                        </td>
+                        <td class="p-3 space-x-3 whitespace-nowrap">
+                            <button class="px-3 py-1 rounded bg-slate-900 text-white">Save</button>
+                    </form>
+                    <form method="post" action="{{ url_for('clients_delete', cid=c.id) }}"
+                        onsubmit="return confirm('Delete client?')" class="inline">
+                        <button class="text-rose-700 underline">Delete</button>
+                    </form>
                     </td>
-                </tr>{% endfor %}
+                </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>

@@ -8,6 +8,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import os
 from pathlib import Path
+import json
 
 # ===== App & Config =====
 app = Flask(__name__)
@@ -221,6 +222,17 @@ class Annexure(db.Model):
     total_present_assessed_value = db.Column(db.Float)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+class AuditLog(db.Model):
+    __tablename__ = "audit_log"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=True)
+    action = db.Column(db.String(20), nullable=False)         # create | update | delete | status | assign | annexure_add | annexure_delete
+    entity = db.Column(db.String(40), nullable=False)         # 'inspection'
+    entity_id = db.Column(db.Integer, nullable=False)
+    changes = db.Column(db.Text, nullable=True)               # JSON string of changes/diff
+    ip = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
 # ===== Helpers =====
 def role_required(*roles):
     def deco(fn):
@@ -313,6 +325,33 @@ def upsert_commission_from_inspection(i: "Inspection"):
         com.cha_id = i.cha_id
         com.amount = amount
     db.session.commit()
+
+def _client_ip():
+    # works behind proxies/load balancers if you set X-Forwarded-For
+    return request.headers.get("X-Forwarded-For", request.remote_addr)
+
+def log_action(action, entity, entity_id, changes=None):
+    try:
+        log = AuditLog(
+            user_id=session.get("user_id"),
+            action=action,
+            entity=entity,
+            entity_id=entity_id,
+            changes=(json.dumps(changes, ensure_ascii=False) if changes else None),
+            ip=_client_ip(),
+        )
+        db.session.add(log)
+        db.session.commit()
+    except Exception as e:
+        app.logger.warning(f"AuditLog failed: {e}")
+
+def dict_diff(before: dict, after: dict):
+    """Return {field: [old, new]} for changed fields only."""
+    diff = {}
+    for k in set(before.keys()) | set(after.keys()):
+        if before.get(k) != after.get(k):
+            diff[k] = [before.get(k), after.get(k)]
+    return diff
 
 @app.context_processor
 def inject_globals():
@@ -414,6 +453,26 @@ def clients_delete(cid):
     obj = Client.query.get_or_404(cid)
     db.session.delete(obj); db.session.commit()
     flash("Client deleted.", "info")
+    return redirect(url_for("clients_list"))
+
+@app.route("/clients/<int:cid>/update", methods=["POST"], endpoint="clients_update")
+@role_required(Role.ADMIN)
+def clients_update(cid):
+    c = Client.query.get_or_404(cid)
+    # pull fields, keep current values if blank/missing
+    name = request.form.get("name", c.name).strip()
+    gst  = request.form.get("gst_number", c.gst_number or "").strip()
+    addr = request.form.get("billing_address", c.billing_address or "")
+
+    if not name:
+        flash("Client name is required.", "warning")
+        return redirect(url_for("clients_list"))
+
+    c.name = name
+    c.gst_number = gst
+    c.billing_address = addr
+    db.session.commit()
+    flash("Client updated.", "success")
     return redirect(url_for("clients_list"))
 
 # ===== CHAs (mgmt list) =====
@@ -573,6 +632,7 @@ def inspection_create():
     # assign public id
     generate_public_id(i)
     db.session.commit()
+    log_action("create", "inspection", i.id, changes={"form": request.form.to_dict(flat=True), "public_id": i.public_id})
 
     # ===== Annexure handling (for CE inspections only) =====
     if i.inspection_type in [InspectionType.CE_VAL, InspectionType.CE_FIT]:
@@ -673,6 +733,9 @@ def inspection_edit(inspection_id):
     clients = Client.query.order_by(Client.name.asc()).all()
     chas = CHA.query.order_by(CHA.name.asc()).all()
     engineers = User.query.filter(User.role == Role.ENGINEER).all()
+    logs = AuditLog.query.filter_by(entity="inspection", entity_id=i.id)\
+                     .order_by(AuditLog.created_at.desc())\
+                     .limit(20).all()
     return render_template("inspection_edit.html", i=i, clients=clients, chas=chas, engineers=engineers)
 
 # admin delete inspection (cleans dependents)
@@ -693,6 +756,7 @@ def inspection_delete(inspection_id):
         db.session.delete(f)
     db.session.delete(i)
     db.session.commit()
+    log_action("delete", "inspection", inspection_id)
     flash("Inspection deleted.", "info")
     return redirect(url_for("dashboard"))
 
@@ -704,6 +768,7 @@ def inspection_status(inspection_id):
         flash("Unauthorized.", "danger"); return redirect(url_for("inspection_detail", inspection_id=inspection_id))
     i.status = request.form["status"]
     db.session.commit()
+    log_action("status", "inspection", inspection_id, changes={"status": i.status})
     flash("Status updated.", "success")
     return redirect(url_for("inspection_detail", inspection_id=inspection_id))
 
@@ -713,6 +778,7 @@ def assign_engineer(inspection_id):
     i = Inspection.query.get_or_404(inspection_id)
     i.engineer_id = int(request.form["engineer_id"]) if request.form.get("engineer_id") else None
     db.session.commit()
+    log_action("assign", "inspection", inspection_id, changes={"engineer_id": i.engineer_id})
     flash("Engineer assigned.", "success")
     return redirect(url_for("inspection_detail", inspection_id=inspection_id))
 
@@ -1020,6 +1086,7 @@ def annexure_add(inspection_id):
 
     db.session.add(a)
     db.session.commit()
+    log_action("annexure_add", "inspection", inspection_id, changes={"annexure": request.form.to_dict(flat=True)})
     flash("Annexure row added.", "success")
     return redirect(url_for("inspection_detail", inspection_id=inspection_id))
 
@@ -1030,6 +1097,7 @@ def annexure_delete(annexure_id):
     a = Annexure.query.get_or_404(annexure_id)
     inspection_id = a.inspection_id
     db.session.delete(a); db.session.commit()
+    log_action("annexure_delete", "inspection", inspection_id, changes={"annexure_id": annexure_id})
     flash("Annexure row deleted.", "info")
     return redirect(url_for("inspection_detail", inspection_id=inspection_id))
 
